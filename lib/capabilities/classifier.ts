@@ -97,6 +97,21 @@ const CAPABILITY_KEYWORDS: Record<Capability, string[]> = {
     "rival",
   ],
   "market-research": ["market", "industry trend", "sector", "landscape"],
+  "ai-adoption-signal": [
+    "ai security",
+    "ai adoption",
+    "ai-powered",
+    "artificial intelligence",
+    "genai",
+    "gen ai",
+    "llm",
+    "machine learning",
+    "need ai",
+    "ai product",
+    "ai feature",
+    "ai help",
+    "ai services",
+  ],
 };
 
 const DEFAULT_CAPABILITIES: Capability[] = ["web-research", "summarization"];

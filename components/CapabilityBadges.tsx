@@ -1,12 +1,6 @@
 import { Capability } from "@/types";
 
-export function CapabilityBadges({
-  capabilities,
-  size = "md",
-}: {
-  capabilities: Capability[];
-  size?: "sm" | "md";
-}) {
+export function CapabilityBadges({ capabilities, size = "md" }: { capabilities: Capability[]; size?: "sm" | "md" }) {
   if (capabilities.length === 0) return null;
 
   return (

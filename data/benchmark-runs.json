@@ -1,0 +1,755 @@
+[
+  {
+    "id": "bench-9dfdac18-810c-4a52-a642-f3ea7d6c806b",
+    "ranAt": "2026-08-19T04:35:55.120Z",
+    "results": [
+      {
+        "scenarioId": "easy-1",
+        "scenarioName": "Cybersecurity startups, recent funding + hiring",
+        "difficulty": "easy",
+        "taskId": "26b77132-e82e-4f89-ae6a-77cae75c3e80",
+        "traceId": "trace-20bee2bc-1220-455f-a0ae-da08416c9df6",
+        "comparison": {
+          "single": {
+            "strategy": "single",
+            "providerNames": [
+              "Research Agent"
+            ],
+            "quality": 0,
+            "evidenceCoverage": 0,
+            "verifiedClaimRate": 0,
+            "totalCost": 1.8,
+            "totalLatency": 3.1,
+            "resultCount": 0,
+            "failedCount": 4
+          },
+          "routed": {
+            "strategy": "routed",
+            "providerNames": [
+              "Research Agent",
+              "Funding Intelligence",
+              "Signal Hunter",
+              "Contact Miner",
+              "Verification Agent"
+            ],
+            "quality": 73,
+            "evidenceCoverage": 0.64,
+            "verifiedClaimRate": 0.63,
+            "totalCost": 6.25,
+            "totalLatency": 4.8,
+            "resultCount": 5,
+            "failedCount": 0
+          },
+          "winner": "routed",
+          "qualityDelta": 73,
+          "evidenceCoverageDelta": 0.64,
+          "verifiedClaimRateDelta": 0.63,
+          "failedRateDelta": -1
+        },
+        "evaluation": {
+          "average_confidence": 0.91,
+          "total_cost": 6.25,
+          "total_latency": 4.8,
+          "providers_used": 5,
+          "qualified_count": 5,
+          "excluded_count": 0,
+          "evidence_coverage": 0.64,
+          "verified_claim_rate": 0.63
+        }
+      },
+      {
+        "scenarioId": "easy-2",
+        "scenarioName": "AI-adopting security vendors",
+        "difficulty": "easy",
+        "taskId": "7110fc60-1474-4f63-8c83-6f05a4a884eb",
+        "traceId": "trace-ca4878cf-993e-4241-88c6-3fc5eda64c4a",
+        "evaluation": {
+          "average_confidence": 0.87,
+          "total_cost": 0.9,
+          "total_latency": 2.8,
+          "providers_used": 1,
+          "qualified_count": 0,
+          "excluded_count": 0,
+          "evidence_coverage": 0,
+          "verified_claim_rate": 0
+        }
+      },
+      {
+        "scenarioId": "easy-3",
+        "scenarioName": "Well-funded Series A security startups",
+        "difficulty": "easy",
+        "taskId": "420a8a4c-9b1c-4453-ab81-43006064d304",
+        "traceId": "trace-fecbb5c9-53bf-4994-8b7c-c27b58123074",
+        "comparison": {
+          "single": {
+            "strategy": "single",
+            "providerNames": [
+              "Research Agent"
+            ],
+            "quality": 0,
+            "evidenceCoverage": 0,
+            "verifiedClaimRate": 0,
+            "totalCost": 1.8,
+            "totalLatency": 4.1,
+            "resultCount": 0,
+            "failedCount": 4
+          },
+          "routed": {
+            "strategy": "routed",
+            "providerNames": [
+              "Research Agent",
+              "Funding Intelligence",
+              "Signal Hunter",
+              "Contact Miner",
+              "Verification Agent"
+            ],
+            "quality": 75,
+            "evidenceCoverage": 0.67,
+            "verifiedClaimRate": 0.67,
+            "totalCost": 5.55,
+            "totalLatency": 4.8,
+            "resultCount": 5,
+            "failedCount": 1
+          },
+          "winner": "routed",
+          "qualityDelta": 75,
+          "evidenceCoverageDelta": 0.67,
+          "verifiedClaimRateDelta": 0.67,
+          "failedRateDelta": -0.83
+        },
+        "evaluation": {
+          "average_confidence": 0.91,
+          "total_cost": 5.55,
+          "total_latency": 4.8,
+          "providers_used": 5,
+          "qualified_count": 5,
+          "excluded_count": 0,
+          "evidence_coverage": 0.67,
+          "verified_claim_rate": 0.67
+        }
+      },
+      {
+        "scenarioId": "easy-4",
+        "scenarioName": "Security teams actively hiring a Head of Security",
+        "difficulty": "easy",
+        "taskId": "215c0fd0-e541-4efd-84e0-dea665c817d8",
+        "traceId": "trace-17c1aba7-650f-46c9-b014-a08eb0ebfb55",
+        "comparison": {
+          "single": {
+            "strategy": "single",
+            "providerNames": [
+              "Research Agent"
+            ],
+            "quality": 0,
+            "evidenceCoverage": 0,
+            "verifiedClaimRate": 0,
+            "totalCost": 1.8,
+            "totalLatency": 3.9,
+            "resultCount": 0,
+            "failedCount": 4
+          },
+          "routed": {
+            "strategy": "routed",
+            "providerNames": [
+              "Research Agent",
+              "Funding Intelligence",
+              "Signal Hunter",
+              "Contact Miner",
+              "Verification Agent"
+            ],
+            "quality": 76,
+            "evidenceCoverage": 0.67,
+            "verifiedClaimRate": 0.67,
+            "totalCost": 6.25,
+            "totalLatency": 3.9,
+            "resultCount": 5,
+            "failedCount": 0
+          },
+          "winner": "routed",
+          "qualityDelta": 76,
+          "evidenceCoverageDelta": 0.67,
+          "verifiedClaimRateDelta": 0.67,
+          "failedRateDelta": -1
+        },
+        "evaluation": {
+          "average_confidence": 0.92,
+          "total_cost": 6.25,
+          "total_latency": 3.9,
+          "providers_used": 5,
+          "qualified_count": 5,
+          "excluded_count": 0,
+          "evidence_coverage": 0.67,
+          "verified_claim_rate": 0.67
+        }
+      },
+      {
+        "scenarioId": "easy-5",
+        "scenarioName": "Decision-maker coverage check",
+        "difficulty": "easy",
+        "taskId": "79745fc7-3b37-443b-95e2-77eaf1912685",
+        "traceId": "trace-2f14cc2c-cb4b-4894-b300-70da17f04d12",
+        "evaluation": {
+          "average_confidence": 0.81,
+          "total_cost": 4,
+          "total_latency": 4.8,
+          "providers_used": 2,
+          "qualified_count": 0,
+          "excluded_count": 0,
+          "evidence_coverage": 0,
+          "verified_claim_rate": 0
+        }
+      },
+      {
+        "scenarioId": "medium-1",
+        "scenarioName": "Mixed-strength buyer list",
+        "difficulty": "medium",
+        "taskId": "81fc077d-52ef-4cdf-ba56-e7169e97f953",
+        "traceId": "trace-a1d72f78-fca9-482f-9cf7-88fbceeacecc",
+        "comparison": {
+          "single": {
+            "strategy": "single",
+            "providerNames": [
+              "Research Agent"
+            ],
+            "quality": 0,
+            "evidenceCoverage": 0,
+            "verifiedClaimRate": 0,
+            "totalCost": 1.8,
+            "totalLatency": 3.2,
+            "resultCount": 0,
+            "failedCount": 4
+          },
+          "routed": {
+            "strategy": "routed",
+            "providerNames": [
+              "Research Agent",
+              "Funding Intelligence",
+              "Signal Hunter",
+              "Contact Miner",
+              "Verification Agent"
+            ],
+            "quality": 71,
+            "evidenceCoverage": 0.67,
+            "verifiedClaimRate": 0.67,
+            "totalCost": 6.25,
+            "totalLatency": 4.9,
+            "resultCount": 8,
+            "failedCount": 0
+          },
+          "winner": "routed",
+          "qualityDelta": 71,
+          "evidenceCoverageDelta": 0.67,
+          "verifiedClaimRateDelta": 0.67,
+          "failedRateDelta": -1
+        },
+        "evaluation": {
+          "average_confidence": 0.86,
+          "total_cost": 6.25,
+          "total_latency": 4.9,
+          "providers_used": 5,
+          "qualified_count": 8,
+          "excluded_count": 0,
+          "evidence_coverage": 0.67,
+          "verified_claim_rate": 0.67
+        }
+      },
+      {
+        "scenarioId": "medium-2",
+        "scenarioName": "Competitor landscape for a B2B SaaS product",
+        "difficulty": "medium",
+        "taskId": "d66e62d2-5459-4ea0-a847-b89df0d3e05f",
+        "traceId": "trace-7ba7ac7d-7525-4111-8335-e7a144ddd37d",
+        "evaluation": {
+          "average_confidence": 0.84,
+          "total_cost": 2.7,
+          "total_latency": 4.5,
+          "providers_used": 1,
+          "qualified_count": 0,
+          "excluded_count": 0,
+          "evidence_coverage": 0,
+          "verified_claim_rate": 0
+        }
+      },
+      {
+        "scenarioId": "medium-3",
+        "scenarioName": "Security hiring signals at moderate confidence",
+        "difficulty": "medium",
+        "taskId": "e481e090-052b-43b3-94ad-5fafce2e1783",
+        "traceId": "trace-17faa711-9fd0-4a1a-a590-88fe0450a71b",
+        "comparison": {
+          "single": {
+            "strategy": "single",
+            "providerNames": [
+              "Research Agent"
+            ],
+            "quality": 0,
+            "evidenceCoverage": 0,
+            "verifiedClaimRate": 0,
+            "totalCost": 1.8,
+            "totalLatency": 3.9,
+            "resultCount": 0,
+            "failedCount": 4
+          },
+          "routed": {
+            "strategy": "routed",
+            "providerNames": [
+              "Research Agent",
+              "Funding Intelligence",
+              "Signal Hunter",
+              "Contact Miner",
+              "Verification Agent"
+            ],
+            "quality": 75,
+            "evidenceCoverage": 0.67,
+            "verifiedClaimRate": 0.67,
+            "totalCost": 6.25,
+            "totalLatency": 4,
+            "resultCount": 6,
+            "failedCount": 0
+          },
+          "winner": "routed",
+          "qualityDelta": 75,
+          "evidenceCoverageDelta": 0.67,
+          "verifiedClaimRateDelta": 0.67,
+          "failedRateDelta": -1
+        },
+        "evaluation": {
+          "average_confidence": 0.91,
+          "total_cost": 6.25,
+          "total_latency": 4,
+          "providers_used": 5,
+          "qualified_count": 6,
+          "excluded_count": 1,
+          "evidence_coverage": 0.67,
+          "verified_claim_rate": 0.67
+        }
+      },
+      {
+        "scenarioId": "medium-4",
+        "scenarioName": "AI security fit across a broader pool",
+        "difficulty": "medium",
+        "taskId": "2dcab1b8-0096-4702-87ba-6571e4d61395",
+        "traceId": "trace-8b9c2d87-e035-4e17-9789-ff1cc14df19b",
+        "comparison": {
+          "single": {
+            "strategy": "single",
+            "providerNames": [
+              "Research Agent"
+            ],
+            "quality": 0,
+            "evidenceCoverage": 0,
+            "verifiedClaimRate": 0,
+            "totalCost": 1.8,
+            "totalLatency": 3.9,
+            "resultCount": 0,
+            "failedCount": 4
+          },
+          "routed": {
+            "strategy": "routed",
+            "providerNames": [
+              "Research Agent",
+              "Funding Intelligence",
+              "Signal Hunter",
+              "Contact Miner",
+              "Verification Agent"
+            ],
+            "quality": 72,
+            "evidenceCoverage": 0.65,
+            "verifiedClaimRate": 0.65,
+            "totalCost": 6.25,
+            "totalLatency": 4.7,
+            "resultCount": 10,
+            "failedCount": 0
+          },
+          "winner": "routed",
+          "qualityDelta": 72,
+          "evidenceCoverageDelta": 0.65,
+          "verifiedClaimRateDelta": 0.65,
+          "failedRateDelta": -1
+        },
+        "evaluation": {
+          "average_confidence": 0.88,
+          "total_cost": 6.25,
+          "total_latency": 4.7,
+          "providers_used": 5,
+          "qualified_count": 10,
+          "excluded_count": 0,
+          "evidence_coverage": 0.65,
+          "verified_claim_rate": 0.65
+        }
+      },
+      {
+        "scenarioId": "medium-5",
+        "scenarioName": "Market research with light company detail",
+        "difficulty": "medium",
+        "taskId": "1a081460-1864-413f-9b8b-4673b0ece94c",
+        "traceId": "trace-6b651795-e2b2-4d2f-a516-9ef524b1180e",
+        "evaluation": {
+          "average_confidence": 0.87,
+          "total_cost": 1.8,
+          "total_latency": 2.9,
+          "providers_used": 1,
+          "qualified_count": 0,
+          "excluded_count": 0,
+          "evidence_coverage": 0,
+          "verified_claim_rate": 0
+        }
+      },
+      {
+        "scenarioId": "sparse-1",
+        "scenarioName": "Small result count, minimal corroboration",
+        "difficulty": "sparse-evidence",
+        "taskId": "a58ffe8f-c6fc-43da-a893-1105c797f9e9",
+        "traceId": "trace-7dd0281c-4079-430b-bc33-56d32823437c",
+        "comparison": {
+          "single": {
+            "strategy": "single",
+            "providerNames": [
+              "Research Agent"
+            ],
+            "quality": 0,
+            "evidenceCoverage": 0,
+            "verifiedClaimRate": 0,
+            "totalCost": 0.9,
+            "totalLatency": 3.3,
+            "resultCount": 0,
+            "failedCount": 5
+          },
+          "routed": {
+            "strategy": "routed",
+            "providerNames": [
+              "Research Agent",
+              "Funding Intelligence",
+              "Signal Hunter",
+              "Contact Miner",
+              "Verification Agent"
+            ],
+            "quality": 77,
+            "evidenceCoverage": 0.67,
+            "verifiedClaimRate": 0.67,
+            "totalCost": 6.25,
+            "totalLatency": 4.9,
+            "resultCount": 2,
+            "failedCount": 0
+          },
+          "winner": "routed",
+          "qualityDelta": 77,
+          "evidenceCoverageDelta": 0.67,
+          "verifiedClaimRateDelta": 0.67,
+          "failedRateDelta": -1
+        },
+        "evaluation": {
+          "average_confidence": 0.93,
+          "total_cost": 6.25,
+          "total_latency": 4.9,
+          "providers_used": 5,
+          "qualified_count": 2,
+          "excluded_count": 0,
+          "evidence_coverage": 0.67,
+          "verified_claim_rate": 0.67
+        }
+      },
+      {
+        "scenarioId": "sparse-2",
+        "scenarioName": "No contact found for most companies",
+        "difficulty": "sparse-evidence",
+        "taskId": "97f7d4e0-157c-409a-a946-690ce5cd60c1",
+        "traceId": "trace-be1d90f7-28f9-47de-b201-c9441b671318",
+        "evaluation": {
+          "average_confidence": 0.82,
+          "total_cost": 4,
+          "total_latency": 4.7,
+          "providers_used": 2,
+          "qualified_count": 0,
+          "excluded_count": 0,
+          "evidence_coverage": 0,
+          "verified_claim_rate": 0
+        }
+      },
+      {
+        "scenarioId": "sparse-3",
+        "scenarioName": "Single weak AI signal",
+        "difficulty": "sparse-evidence",
+        "taskId": "4be3f414-d29f-4135-ab6e-4df1af65d566",
+        "traceId": "trace-70333fa1-3aa1-492c-b453-c7e4f4115f57",
+        "evaluation": {
+          "average_confidence": 0.85,
+          "total_cost": 1.8,
+          "total_latency": 4,
+          "providers_used": 1,
+          "qualified_count": 0,
+          "excluded_count": 0,
+          "evidence_coverage": 0,
+          "verified_claim_rate": 0
+        }
+      },
+      {
+        "scenarioId": "sparse-4",
+        "scenarioName": "Unfunded or pre-seed companies",
+        "difficulty": "sparse-evidence",
+        "taskId": "d45266cd-1084-471c-a9f8-e5644c392c70",
+        "traceId": "trace-df891bca-83cd-425e-b99f-e2b07c3ad088",
+        "comparison": {
+          "single": {
+            "strategy": "single",
+            "providerNames": [
+              "Research Agent"
+            ],
+            "quality": 0,
+            "evidenceCoverage": 0,
+            "verifiedClaimRate": 0,
+            "totalCost": 1.8,
+            "totalLatency": 4.1,
+            "resultCount": 0,
+            "failedCount": 4
+          },
+          "routed": {
+            "strategy": "routed",
+            "providerNames": [
+              "Research Agent",
+              "Funding Intelligence",
+              "Signal Hunter",
+              "Contact Miner",
+              "Verification Agent"
+            ],
+            "quality": 75,
+            "evidenceCoverage": 0.67,
+            "verifiedClaimRate": 0.67,
+            "totalCost": 6.25,
+            "totalLatency": 4.7,
+            "resultCount": 4,
+            "failedCount": 0
+          },
+          "winner": "routed",
+          "qualityDelta": 75,
+          "evidenceCoverageDelta": 0.67,
+          "verifiedClaimRateDelta": 0.67,
+          "failedRateDelta": -1
+        },
+        "evaluation": {
+          "average_confidence": 0.92,
+          "total_cost": 6.25,
+          "total_latency": 4.7,
+          "providers_used": 5,
+          "qualified_count": 4,
+          "excluded_count": 0,
+          "evidence_coverage": 0.67,
+          "verified_claim_rate": 0.67
+        }
+      },
+      {
+        "scenarioId": "sparse-5",
+        "scenarioName": "Minimal hiring footprint",
+        "difficulty": "sparse-evidence",
+        "taskId": "9489d5ff-a2f4-40a2-b08f-36696784b958",
+        "traceId": "trace-907239f8-a7df-4c93-a80f-8341eb504b87",
+        "evaluation": {
+          "average_confidence": 0.88,
+          "total_cost": 0.9,
+          "total_latency": 3.2,
+          "providers_used": 1,
+          "qualified_count": 0,
+          "excluded_count": 0,
+          "evidence_coverage": 0,
+          "verified_claim_rate": 0
+        }
+      },
+      {
+        "scenarioId": "conflict-1",
+        "scenarioName": "Funding round disagreement",
+        "difficulty": "conflicting-evidence",
+        "taskId": "cdc05899-7018-41d4-88d1-8a9aad6d0ea4",
+        "traceId": "trace-be49fb5d-811c-4ef9-9006-92962553e5c0",
+        "comparison": {
+          "single": {
+            "strategy": "single",
+            "providerNames": [
+              "Research Agent"
+            ],
+            "quality": 0,
+            "evidenceCoverage": 0,
+            "verifiedClaimRate": 0,
+            "totalCost": 1.8,
+            "totalLatency": 2.6,
+            "resultCount": 0,
+            "failedCount": 4
+          },
+          "routed": {
+            "strategy": "routed",
+            "providerNames": [
+              "Research Agent",
+              "Funding Intelligence",
+              "Signal Hunter",
+              "Contact Miner",
+              "Verification Agent"
+            ],
+            "quality": 74,
+            "evidenceCoverage": 0.67,
+            "verifiedClaimRate": 0.67,
+            "totalCost": 6.25,
+            "totalLatency": 4.1,
+            "resultCount": 5,
+            "failedCount": 0
+          },
+          "winner": "routed",
+          "qualityDelta": 74,
+          "evidenceCoverageDelta": 0.67,
+          "verifiedClaimRateDelta": 0.67,
+          "failedRateDelta": -1
+        },
+        "evaluation": {
+          "average_confidence": 0.9,
+          "total_cost": 6.25,
+          "total_latency": 4.1,
+          "providers_used": 5,
+          "qualified_count": 5,
+          "excluded_count": 0,
+          "evidence_coverage": 0.67,
+          "verified_claim_rate": 0.67
+        }
+      },
+      {
+        "scenarioId": "conflict-2",
+        "scenarioName": "Stale vs. current hiring signal",
+        "difficulty": "conflicting-evidence",
+        "taskId": "c5c9a3b3-6092-47ec-9892-72a696ee8c5e",
+        "traceId": "trace-c5089297-1baa-4e78-a664-83f654bc81fa",
+        "comparison": {
+          "single": {
+            "strategy": "single",
+            "providerNames": [
+              "Research Agent"
+            ],
+            "quality": 0,
+            "evidenceCoverage": 0,
+            "verifiedClaimRate": 0,
+            "totalCost": 1.8,
+            "totalLatency": 3.4,
+            "resultCount": 0,
+            "failedCount": 4
+          },
+          "routed": {
+            "strategy": "routed",
+            "providerNames": [
+              "Research Agent",
+              "Funding Intelligence",
+              "Signal Hunter",
+              "Contact Miner",
+              "Verification Agent"
+            ],
+            "quality": 72,
+            "evidenceCoverage": 0.64,
+            "verifiedClaimRate": 0.63,
+            "totalCost": 6.25,
+            "totalLatency": 4.6,
+            "resultCount": 5,
+            "failedCount": 0
+          },
+          "winner": "routed",
+          "qualityDelta": 72,
+          "evidenceCoverageDelta": 0.64,
+          "verifiedClaimRateDelta": 0.63,
+          "failedRateDelta": -1
+        },
+        "evaluation": {
+          "average_confidence": 0.89,
+          "total_cost": 6.25,
+          "total_latency": 4.6,
+          "providers_used": 5,
+          "qualified_count": 5,
+          "excluded_count": 0,
+          "evidence_coverage": 0.64,
+          "verified_claim_rate": 0.63
+        }
+      },
+      {
+        "scenarioId": "conflict-3",
+        "scenarioName": "Executive title mismatch",
+        "difficulty": "conflicting-evidence",
+        "taskId": "9553d748-ced6-4150-bb69-215fff6202c7",
+        "traceId": "trace-27688f2c-6570-469c-9396-02740d787f65",
+        "evaluation": {
+          "average_confidence": 0.88,
+          "total_cost": 4.75,
+          "total_latency": 5,
+          "providers_used": 4,
+          "qualified_count": 0,
+          "excluded_count": 0,
+          "evidence_coverage": 0,
+          "verified_claim_rate": 0
+        }
+      },
+      {
+        "scenarioId": "conflict-4",
+        "scenarioName": "Series A vs. Series B disagreement",
+        "difficulty": "conflicting-evidence",
+        "taskId": "10064375-181d-4b05-b0ff-861fa09053d6",
+        "traceId": "trace-a672f808-8a11-41a8-a444-d222d6af5830",
+        "evaluation": {
+          "average_confidence": 0.87,
+          "total_cost": 3.1,
+          "total_latency": 5.2,
+          "providers_used": 3,
+          "qualified_count": 0,
+          "excluded_count": 0,
+          "evidence_coverage": 0,
+          "verified_claim_rate": 0
+        }
+      },
+      {
+        "scenarioId": "conflict-5",
+        "scenarioName": "Duplicate company across discovery queries",
+        "difficulty": "conflicting-evidence",
+        "taskId": "8a567866-9506-4e9a-83a2-a1aa43f2242d",
+        "traceId": "trace-19a8a8ba-9edd-401e-8406-5f2938c6e159",
+        "comparison": {
+          "single": {
+            "strategy": "single",
+            "providerNames": [
+              "Research Agent"
+            ],
+            "quality": 0,
+            "evidenceCoverage": 0,
+            "verifiedClaimRate": 0,
+            "totalCost": 1.8,
+            "totalLatency": 4.3,
+            "resultCount": 0,
+            "failedCount": 4
+          },
+          "routed": {
+            "strategy": "routed",
+            "providerNames": [
+              "Research Agent",
+              "Funding Intelligence",
+              "Signal Hunter",
+              "Contact Miner",
+              "Verification Agent"
+            ],
+            "quality": 71,
+            "evidenceCoverage": 0.65,
+            "verifiedClaimRate": 0.65,
+            "totalCost": 6.25,
+            "totalLatency": 5.2,
+            "resultCount": 8,
+            "failedCount": 0
+          },
+          "winner": "routed",
+          "qualityDelta": 71,
+          "evidenceCoverageDelta": 0.65,
+          "verifiedClaimRateDelta": 0.65,
+          "failedRateDelta": -1
+        },
+        "evaluation": {
+          "average_confidence": 0.87,
+          "total_cost": 6.25,
+          "total_latency": 5.2,
+          "providers_used": 5,
+          "qualified_count": 8,
+          "excluded_count": 0,
+          "evidence_coverage": 0.65,
+          "verified_claim_rate": 0.65
+        }
+      }
+    ]
+  }
+]

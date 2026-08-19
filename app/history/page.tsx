@@ -13,14 +13,11 @@ export default async function HistoryPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Task history</h1>
           <p className="mt-1 text-sm text-muted">
-            Every routed task, the agents it picked, and how it scored - the record that makes
-            future routing decisions smarter.
+            Every routed task, the providers it picked, and how it scored - including follow-up chains. Click a goal
+            to restore its full result view.
           </p>
         </div>
-        <Link
-          href="/"
-          className="shrink-0 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground transition hover:bg-surface-raised"
-        >
+        <Link href="/" className="shrink-0 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-foreground transition hover:bg-surface-raised">
           + New task
         </Link>
       </div>
