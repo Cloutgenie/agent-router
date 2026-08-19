@@ -17,6 +17,7 @@ function makeConfig(overrides: Partial<RuntimeConfig> = {}): RuntimeConfig {
     clayConfigured: false,
     tavilyConfigured: false,
     geminiConfigured: false,
+    xaiConfigured: false,
     mcpConfigured: false,
     mcpGrantedScopes: [],
     a2aConfigured: false,

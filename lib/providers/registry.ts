@@ -13,6 +13,7 @@ import { createOpenAIProvider } from "./adapters/openaiProvider";
 import { createPersistentAgentExecutor } from "./adapters/persistentAgentExecutor";
 import { createRestProvider } from "./adapters/restProvider";
 import { createTavilyProvider } from "./adapters/tavilyProvider";
+import { createXAIProvider } from "./adapters/xaiProvider";
 import { MockBrowserExecutor } from "./mock/browserExecutor";
 import { MockContactProvider } from "./mock/contactProvider";
 import { MockFundingProvider } from "./mock/fundingProvider";
@@ -46,6 +47,7 @@ export function getAllProviders(config: RuntimeConfig = getRuntimeConfig()): Age
     createLLMAnalysisProvider(config),
     createGeminiAnalysisProvider(config),
     createOpenAIProvider(config),
+    createXAIProvider(config),
     createBrowserExecutor(config),
     createPersistentAgentExecutor(config),
   ];

@@ -23,6 +23,7 @@ export interface RuntimeConfig {
   clayConfigured: boolean;
   tavilyConfigured: boolean;
   geminiConfigured: boolean;
+  xaiConfigured: boolean;
   mcpConfigured: boolean;
   /** Write-capable MCP scopes explicitly allowlisted via MCP_GRANTED_SCOPES - never assumed. */
   mcpGrantedScopes: MCPPermissionScope[];
@@ -52,6 +53,7 @@ export function getRuntimeConfig(): RuntimeConfig {
     clayConfigured: liveEnabled && Boolean(process.env.CLAY_API_KEY),
     tavilyConfigured: liveEnabled && Boolean(process.env.TAVILY_API_KEY),
     geminiConfigured: liveEnabled && Boolean(process.env.GEMINI_API_KEY),
+    xaiConfigured: liveEnabled && Boolean(process.env.XAI_API_KEY),
     mcpConfigured: liveEnabled && Boolean(process.env.MCP_SERVER_URL),
     mcpGrantedScopes: liveEnabled ? parseGrantedScopes(process.env.MCP_GRANTED_SCOPES) : [],
     a2aConfigured: liveEnabled && Boolean(process.env.A2A_REGISTRY_URL),

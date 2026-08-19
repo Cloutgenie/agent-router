@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createOpenAIProvider } from "@/lib/providers/adapters/openaiProvider";
+import { createXAIProvider } from "@/lib/providers/adapters/xaiProvider";
 import { RuntimeConfig } from "@/lib/config";
 import { ProviderTask } from "@/types";
 
@@ -11,7 +11,7 @@ function makeConfig(overrides: Partial<RuntimeConfig> = {}): RuntimeConfig {
     clayConfigured: false,
     tavilyConfigured: false,
     geminiConfigured: false,
-    xaiConfigured: false,
+    xaiConfigured: true,
     mcpConfigured: false,
     mcpGrantedScopes: [],
     a2aConfigured: false,
@@ -44,40 +44,47 @@ function chatResponse(content: string): Response {
   });
 }
 
-describe("OpenAIProvider", () => {
+describe("XAIProvider", () => {
   const originalFetch = global.fetch;
-  const originalKey = process.env.OPENAI_API_KEY;
+  const originalKey = process.env.XAI_API_KEY;
 
   beforeEach(() => {
-    process.env.OPENAI_API_KEY = "test-key";
+    process.env.XAI_API_KEY = "test-key";
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
-    process.env.OPENAI_API_KEY = originalKey;
+    process.env.XAI_API_KEY = originalKey;
+  });
+
+  it("configured reflects RuntimeConfig.xaiConfigured, not a re-derived env check", () => {
+    expect(createXAIProvider(makeConfig({ xaiConfigured: true })).configured).toBe(true);
+    expect(createXAIProvider(makeConfig({ xaiConfigured: false })).configured).toBe(false);
   });
 
   it("fails cleanly when the API key is missing, without ever calling fetch", async () => {
-    delete process.env.OPENAI_API_KEY;
+    delete process.env.XAI_API_KEY;
     global.fetch = vi.fn();
-    const provider = createOpenAIProvider(makeConfig());
+    const provider = createXAIProvider(makeConfig());
 
     const result = await provider.execute(makeTask());
 
     expect(result.status).toBe("failed");
-    expect(result.error).toMatch(/OPENAI_API_KEY/);
+    expect(result.error).toMatch(/XAI_API_KEY/);
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("parses a valid JSON response into an AI-signal claim", async () => {
-    global.fetch = vi.fn(async (_url, init) => {
+  it("calls the real xAI Chat Completions endpoint with the OpenAI-compatible request shape", async () => {
+    global.fetch = vi.fn(async (url, init) => {
+      expect(url).toBe("https://api.x.ai/v1/chat/completions");
       const body = JSON.parse((init?.body as string) ?? "{}");
       expect(body.response_format).toEqual({ type: "json_object" });
       expect(body.messages[0].role).toBe("system");
+      expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer test-key");
       return chatResponse(JSON.stringify({ signal_detected: true, summary: "Ships an AI-based detection model.", confidence: 0.88 }));
     }) as unknown as typeof fetch;
 
-    const provider = createOpenAIProvider(makeConfig());
+    const provider = createXAIProvider(makeConfig());
     const result = await provider.execute(makeTask());
 
     expect(result.status).toBe("completed");
@@ -94,7 +101,7 @@ describe("OpenAIProvider", () => {
       return chatResponse(JSON.stringify({ signal_detected: false, summary: "No AI signal found.", confidence: 0.4 }));
     }) as unknown as typeof fetch;
 
-    const provider = createOpenAIProvider(makeConfig());
+    const provider = createXAIProvider(makeConfig());
     const result = await provider.execute(makeTask());
 
     expect(result.status).toBe("completed");
@@ -106,7 +113,7 @@ describe("OpenAIProvider", () => {
   it("fails the step (not the process) after two consecutive malformed responses", async () => {
     global.fetch = vi.fn(async () => chatResponse("still not json")) as unknown as typeof fetch;
 
-    const provider = createOpenAIProvider(makeConfig());
+    const provider = createXAIProvider(makeConfig());
     const result = await provider.execute(makeTask());
 
     expect(result.status).toBe("failed");
@@ -116,10 +123,23 @@ describe("OpenAIProvider", () => {
   it("fails cleanly on an API error status", async () => {
     global.fetch = vi.fn(async () => new Response("server error", { status: 500 })) as unknown as typeof fetch;
 
-    const provider = createOpenAIProvider(makeConfig());
+    const provider = createXAIProvider(makeConfig());
     const result = await provider.execute(makeTask());
 
     expect(result.status).toBe("failed");
     expect(result.error).toMatch(/500/);
+  });
+
+  it("uses XAI_MODEL when set, otherwise the non-reasoning default", async () => {
+    process.env.XAI_MODEL = "grok-custom-model";
+    global.fetch = vi.fn(async (_url, init) => {
+      const body = JSON.parse((init?.body as string) ?? "{}");
+      expect(body.model).toBe("grok-custom-model");
+      return chatResponse(JSON.stringify({ signal_detected: true, summary: "ok", confidence: 0.5 }));
+    }) as unknown as typeof fetch;
+
+    const provider = createXAIProvider(makeConfig());
+    await provider.execute(makeTask());
+    delete process.env.XAI_MODEL;
   });
 });
