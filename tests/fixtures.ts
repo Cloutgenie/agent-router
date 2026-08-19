@@ -1,4 +1,4 @@
-import { AgentProvider, ProviderResult, ProviderTask } from "@/types";
+import { AgentProvider, Capability, ProviderPerformanceMetrics, ProviderResult, ProviderTask } from "@/types";
 
 export function makeProvider(overrides: Partial<AgentProvider>): AgentProvider {
   return {
@@ -47,6 +47,31 @@ export function alwaysFailProvider(id: string, overrides: Partial<AgentProvider>
     },
     ...overrides,
   });
+}
+
+export function makeMetrics(
+  providerId: string,
+  capability: Capability,
+  overrides: Partial<ProviderPerformanceMetrics> = {}
+): ProviderPerformanceMetrics {
+  return {
+    provider_id: providerId,
+    capability,
+    tasks_attempted: 0,
+    success_rate: 0,
+    average_confidence: 0,
+    average_latency: 0,
+    average_cost: 0,
+    verification_pass_rate: 0,
+    acceptance_rate: 0,
+    feedback_count: 0,
+    success_count: 0,
+    verification_pass_count: 0,
+    verification_total: 0,
+    accepted_count: 0,
+    rejected_count: 0,
+    ...overrides,
+  };
 }
 
 export function alwaysSucceedProvider(id: string, overrides: Partial<AgentProvider> = {}): AgentProvider {

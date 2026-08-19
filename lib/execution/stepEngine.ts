@@ -1,5 +1,6 @@
 import { RuntimeConfig } from "@/lib/config";
 import { recordProviderAttempt } from "@/lib/history/performanceStore";
+import { recordQuotes } from "@/lib/market/quoteStore";
 import { evaluateApproval } from "@/lib/policy/executionPolicy";
 import { beginRun, endRun, isAtConcurrencyLimit } from "@/lib/providers/concurrencyTracker";
 import { getCachedOverrides } from "@/lib/providers/overrideStore";
@@ -337,6 +338,7 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
 
       const routed = routeStep({
         providers,
+        capability: step.capability,
         constraints,
         performance: perfMap,
         explorationRate: config.explorationRate,
@@ -348,6 +350,8 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
       step.fallbackProviderIds = routed.fallbackProviderIds;
       step.status = "running";
       runnable.push(step);
+
+      await recordQuotes(taskId, step.id, routed.offers);
 
       if (routed.selectedProviderId) {
         const provider = providers.find((p) => p.id === routed.selectedProviderId);

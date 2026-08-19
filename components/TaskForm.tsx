@@ -103,6 +103,8 @@ export function TaskForm({
               <option value="best-quality">Best quality</option>
               <option value="lowest-cost">Lowest cost</option>
               <option value="fastest">Fastest result</option>
+              <option value="highest-reliability">Highest reliability</option>
+              <option value="market-optimal">Market optimal</option>
             </select>
           </Field>
           <Field label="Result count">

@@ -181,6 +181,11 @@ function toMetrics(record: ProviderPerformanceRecord): ProviderPerformanceMetric
       record.verification_total > 0 ? round2(record.verification_pass_count / record.verification_total) : 0,
     acceptance_rate: feedbackCount > 0 ? round2(record.accepted_count / feedbackCount) : 0,
     feedback_count: feedbackCount,
+    success_count: record.success_count,
+    verification_pass_count: record.verification_pass_count,
+    verification_total: record.verification_total,
+    accepted_count: record.accepted_count,
+    rejected_count: record.rejected_count,
   };
 }
 

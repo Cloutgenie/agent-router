@@ -25,6 +25,9 @@ function mockPerformanceStore() {
     recordProviderAttempt: vi.fn(async () => undefined),
     getAllPerformanceMetrics: vi.fn(async () => []),
   }));
+  vi.doMock("@/lib/market/quoteStore", () => ({
+    recordQuotes: vi.fn(async () => undefined),
+  }));
 }
 
 describe("stepEngine runtime caps", () => {

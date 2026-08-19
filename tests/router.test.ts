@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { routeStep } from "@/lib/router/providerRouter";
-import { makeProvider } from "./fixtures";
+import { makeMetrics, makeProvider } from "./fixtures";
 
 describe("routeStep", () => {
   afterEach(() => {
@@ -14,6 +14,7 @@ describe("routeStep", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.99); // never exploration-trigger
     const result = routeStep({
       providers: [cheap, premium],
+      capability: "company-research",
       constraints: {},
       performance: new Map(),
       explorationRate: 0,
@@ -32,6 +33,7 @@ describe("routeStep", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.99);
     const result = routeStep({
       providers: [affordable, expensive],
+      capability: "company-research",
       constraints: { budget: 2 },
       performance: new Map(),
       explorationRate: 0,
@@ -53,6 +55,7 @@ describe("routeStep", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.99);
     const result = routeStep({
       providers: [best, worst],
+      capability: "company-research",
       constraints: {},
       performance: new Map(),
       explorationRate: 0.1,
@@ -69,6 +72,7 @@ describe("routeStep", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.01); // well inside a 10% exploration rate
     const result = routeStep({
       providers: [best, runnerUp],
+      capability: "company-research",
       constraints: {},
       performance: new Map(),
       explorationRate: 0.1,
@@ -85,12 +89,14 @@ describe("routeStep", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.99);
     const balanced = routeStep({
       providers: [cheapButWeak, pricyButStrong],
+      capability: "company-research",
       constraints: { routing_preference: "balanced" },
       performance: new Map(),
       explorationRate: 0,
     });
     const lowestCost = routeStep({
       providers: [cheapButWeak, pricyButStrong],
+      capability: "company-research",
       constraints: { routing_preference: "lowest-cost" },
       performance: new Map(),
       explorationRate: 0,
@@ -108,8 +114,126 @@ describe("routeStep", () => {
   });
 
   it("returns no candidates when no providers are eligible", () => {
-    const result = routeStep({ providers: [], constraints: {}, performance: new Map(), explorationRate: 0 });
+    const result = routeStep({
+      providers: [],
+      capability: "company-research",
+      constraints: {},
+      performance: new Map(),
+      explorationRate: 0,
+    });
     expect(result.candidates).toEqual([]);
     expect(result.selectedProviderId).toBeUndefined();
+  });
+
+  it("returns one ExecutionOffer per candidate, in the same order as candidates", () => {
+    const a = makeProvider({ id: "a" });
+    const b = makeProvider({ id: "b" });
+
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    const result = routeStep({
+      providers: [a, b],
+      capability: "company-research",
+      constraints: {},
+      performance: new Map(),
+      explorationRate: 0,
+    });
+
+    expect(result.offers).toHaveLength(2);
+    expect(result.offers.map((o) => o.executorId)).toEqual(result.candidates.map((c) => c.provider_id));
+  });
+
+  it("market-optimal mode picks the executor with real verified-outcome history over one with only a good raw quality score", () => {
+    const flashyButUnverified = makeProvider({ id: "flashy", quality_score: 0.99, price_per_task: 1, average_latency_seconds: 2 });
+    const provenTrackRecord = makeProvider({ id: "proven", quality_score: 0.7, price_per_task: 1, average_latency_seconds: 2 });
+
+    const performance = new Map([
+      [
+        "proven",
+        makeMetrics("proven", "company-research", {
+          tasks_attempted: 200,
+          success_count: 190,
+          average_confidence: 0.85,
+          verification_total: 200,
+          verification_pass_count: 185,
+        }),
+      ],
+    ]);
+
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    const result = routeStep({
+      providers: [flashyButUnverified, provenTrackRecord],
+      capability: "company-research",
+      constraints: { routing_preference: "market-optimal" },
+      performance,
+      explorationRate: 0,
+    });
+
+    expect(result.selectedProviderId).toBe("proven");
+  });
+
+  it("highest-reliability mode reuses the standard formula, just weighted toward reliability_score", () => {
+    const reliable = makeProvider({ id: "reliable", reliability_score: 0.99, quality_score: 0.5, price_per_task: 5 });
+    const cheap = makeProvider({ id: "cheap", reliability_score: 0.4, quality_score: 0.99, price_per_task: 0.2 });
+
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    const result = routeStep({
+      providers: [reliable, cheap],
+      capability: "company-research",
+      constraints: { routing_preference: "highest-reliability" },
+      performance: new Map(),
+      explorationRate: 0,
+    });
+
+    expect(result.selectedProviderId).toBe("reliable");
+  });
+
+  it("excludes a candidate whose price exceeds maximum_cost entirely, rather than merely scoring it down", () => {
+    const affordable = makeProvider({ id: "affordable", price_per_task: 1, quality_score: 0.5 });
+    const pricy = makeProvider({ id: "pricy", price_per_task: 100, quality_score: 0.99 });
+
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    const result = routeStep({
+      providers: [affordable, pricy],
+      capability: "company-research",
+      constraints: { maximum_cost: 5 },
+      performance: new Map(),
+      explorationRate: 0,
+    });
+
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0].provider_id).toBe("affordable");
+  });
+
+  it("gives a provider with no verification history yet the benefit of the doubt against minimum_verification", () => {
+    const provider = makeProvider({ id: "p1" });
+
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    const result = routeStep({
+      providers: [provider],
+      capability: "company-research",
+      constraints: { minimum_verification: 0.9 },
+      performance: new Map(),
+      explorationRate: 0,
+    });
+
+    expect(result.candidates).toHaveLength(1); // not excluded despite having 0 verified history
+  });
+
+  it("excludes a provider whose actual verification rate falls below minimum_verification once it has history", () => {
+    const weak = makeProvider({ id: "weak" });
+    const performance = new Map([
+      ["weak", makeMetrics("weak", "company-research", { verification_total: 50, verification_pass_count: 5 })],
+    ]);
+
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    const result = routeStep({
+      providers: [weak],
+      capability: "company-research",
+      constraints: { minimum_verification: 0.5 },
+      performance,
+      explorationRate: 0,
+    });
+
+    expect(result.candidates).toHaveLength(0);
   });
 });

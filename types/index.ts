@@ -294,6 +294,63 @@ export interface ProviderCandidateScore {
   explored: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Execution market (V7 #1-9) - a formal vocabulary around routing: what each
+// eligible executor offers for a step (ExecutionOffer), what gets persisted
+// as the record of that offer (ExecutionQuote), and each executor's
+// capability-specific track record (CapabilityPerformance). Layered on top
+// of - not a replacement for - the existing ProviderCandidateScore /
+// ProviderPerformanceMetrics routing machinery; every V6 field keeps
+// working exactly as before. See lib/router/marketUtility.ts.
+// ---------------------------------------------------------------------------
+
+/** Sample-size-corrected view of one executor's track record for one capability. */
+export interface CapabilityPerformance {
+  executorId: string;
+  capability: Capability;
+  /** Reserved for future context-dimension segmentation (industry, geography, ...) - always undefined today. */
+  taskContext?: string;
+  jobsCompleted: number;
+  successRate: number;
+  verificationRate: number;
+  humanAcceptanceRate: number;
+  avgQuality: number;
+  avgLatencyMs: number;
+  avgCost: number;
+  failureRate: number;
+  /** Not tracked yet - the performance store doesn't distinguish first-choice vs. fallback attempts. Always 0. */
+  fallbackRate: number;
+  confidenceAdjustedScore: number;
+}
+
+/** What one executor offers for one step, before a winner is picked. */
+export interface ExecutionOffer {
+  executorId: string;
+  capability: Capability;
+  estimatedCost: number;
+  estimatedLatencyMs: number;
+  estimatedQuality: number;
+  estimatedVerificationRate: number;
+  reliability: number;
+  /** 0-1, sample-size-based - see CapabilityPerformance.jobsCompleted. */
+  confidence: number;
+  available: boolean;
+}
+
+/** A persisted record of one ExecutionOffer - the full quote list for a step, not just the winner. */
+export interface ExecutionQuote {
+  id: string;
+  taskId: string;
+  stepId: string;
+  executorId: string;
+  capability: Capability;
+  priceEstimate: number;
+  latencyEstimateMs: number;
+  qualityEstimate: number;
+  reliabilityEstimate: number;
+  createdAt: string;
+}
+
 export type StepStatus = "pending" | "running" | "completed" | "failed" | "awaiting_approval";
 
 export interface ExecutionStep {
@@ -480,8 +537,20 @@ export type FollowUpAction =
   | "verify-emails"
   | "deeper-research";
 
-/** Alters router scoring weights (V4 #15). "balanced" is the default. */
-export type RoutingPreference = "balanced" | "best-quality" | "lowest-cost" | "fastest";
+/**
+ * Alters router scoring weights (V4 #15). "balanced" is the default.
+ * "highest-reliability" (V7 #7) reuses the same weighted-formula path with a
+ * reliability-heavy multiplier. "market-optimal" (V7 #7-8) is scored by a
+ * genuinely different, transparent utility function over each executor's
+ * capability-specific track record instead - see lib/router/marketUtility.ts.
+ */
+export type RoutingPreference =
+  | "balanced"
+  | "best-quality"
+  | "lowest-cost"
+  | "fastest"
+  | "highest-reliability"
+  | "market-optimal";
 
 export interface TaskConstraints {
   budget?: number;
@@ -495,6 +564,17 @@ export interface TaskConstraints {
   compare_strategies?: boolean;
   /** Capabilities explicitly pre-approved for this task - anything above READ_ONLY risk is otherwise blocked by default (spec #28). */
   approved_actions?: Capability[];
+  /**
+   * Hard floors/ceilings (V7 #9) - a candidate that violates one is excluded
+   * from routing entirely, never merely scored down. minimum_verification is
+   * skipped (not enforced) for an executor with no verification history yet
+   * for this capability - cold start gets the benefit of the doubt rather
+   * than being permanently locked out by a floor nothing has earned yet.
+   */
+  minimum_quality?: number;
+  minimum_verification?: number;
+  maximum_cost?: number;
+  maximum_latency_seconds?: number;
 }
 
 export interface CostBreakdown {
@@ -643,6 +723,17 @@ export interface ProviderPerformanceMetrics {
   verification_pass_rate: number;
   acceptance_rate: number;
   feedback_count: number;
+  /**
+   * Raw counts (V7 market core) alongside the ratios above - needed for
+   * sample-size-corrected (Wilson lower bound) scoring, which a pre-divided
+   * rate can't reconstruct. The *_rate fields above are unchanged and still
+   * what existing code should read for a simple ratio.
+   */
+  success_count: number;
+  verification_pass_count: number;
+  verification_total: number;
+  accepted_count: number;
+  rejected_count: number;
 }
 
 // ---------------------------------------------------------------------------

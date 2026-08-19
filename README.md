@@ -124,12 +124,61 @@ score =
   + historical_bonus     (±0.05, from real routing history once it exists)
 ```
 
-A **routing preference** (`balanced` / `best-quality` / `lowest-cost` / `fastest`) multiplies
-the quality/cost/latency weight groups before scoring. Candidates outside budget get a 50%
-penalty rather than being hidden. A small **exploration rate** (`EXPLORATION_RATE`, default
-0.1) occasionally picks the runner-up instead of the top scorer when it's still in budget, so
-the system keeps gathering real performance data on providers it would otherwise never try -
-a simple epsilon-greedy bandit, not full RL.
+A **routing preference** (`balanced` / `best-quality` / `lowest-cost` / `fastest` /
+`highest-reliability`) multiplies the quality/reliability/cost/latency weight groups before
+scoring using this same formula. Candidates outside budget get a 50% penalty rather than being
+hidden. A small **exploration rate** (`EXPLORATION_RATE`, default 0.1) occasionally picks the
+runner-up instead of the top scorer when it's still in budget, so the system keeps gathering
+real performance data on providers it would otherwise never try - a simple epsilon-greedy
+bandit, not full RL.
+
+#### Execution market (`lib/router/marketUtility.ts`, `lib/market/quoteStore.ts`)
+
+Every eligible provider's score above is also expressed as a formal **ExecutionOffer** -
+`estimatedCost`, `estimatedLatencyMs`, `estimatedQuality`, `estimatedVerificationRate`,
+`reliability`, and a sample-size-based `confidence` (0 at zero history, 1 at 20+ jobs). The
+full offer list for every step - not just the winner - is persisted as `ExecutionQuote` records
+(`data/execution-quotes.json`), so a future market dashboard can show real competition ("3
+quoted, 1 selected") instead of only the outcome.
+
+Offers are built from **CapabilityPerformance**: a sample-size-corrected read of a provider's
+actual track record for one specific capability, computed from the existing performance store
+(`lib/history/performanceStore.ts`) rather than a provider's single static `quality_score`.
+Proportions (success rate, verification rate, human acceptance rate) use a **Wilson score
+lower bound** - a provider with 2/2 perfect tasks does not outrank one with 950/1000, since a
+lucky small streak gets pulled hard toward a neutral 0.5 prior while a large consistent sample
+does not. Continuous metrics (latency, cost, quality) use linear shrinkage toward the
+provider's static registry values instead - same instinct, different math for values that
+aren't pass/fail rates. With zero history, both reduce cleanly to the provider's original
+static score (honest cold-start behavior, not a fabricated high-confidence number).
+
+A new **`market-optimal`** routing preference uses this data directly instead of the weighted
+formula above, via a transparent (no ML) utility function:
+
+```
+utility =
+  0.25 * avgQuality
+  + 0.25 * verificationRate
+  + 0.20 * successRate          (reliability)
+  + 0.10 * humanAcceptanceRate
+  - 0.10 * normalizedCost
+  - 0.10 * normalizedLatency
+```
+
+This is "which executor has actually earned this work," not "which executor has the best
+sales-sheet numbers" - a flashy `quality_score` with zero verified outcomes loses to a
+lower-`quality_score` provider with a real, verified track record. `highest-reliability` is a
+lighter-weight addition: the same weighted formula as `balanced`, just multiplied toward
+`reliability_score`.
+
+Tasks can also set hard **`minimum_quality`** / **`minimum_verification`** / **`maximum_cost`**
+/ **`maximum_latency_seconds`** constraints - a candidate that violates one is excluded from
+routing entirely, never merely scored down, so a cheap-but-disqualified provider can never win
+by having a great `cost_efficiency` term. `minimum_verification` is skipped for a provider with
+no verification history yet for this capability, so a brand-new capability isn't permanently
+locked out by a floor nothing has had the chance to earn. These four constraints are API-only
+today (`POST /api/tasks`) - no TaskForm UI field yet, unlike the two new routing-preference
+options, which are.
 
 ### 3. Providers (`lib/providers/`)
 
@@ -490,6 +539,16 @@ makes it traceable back to a mock source.
 
 ## What's intentionally simplified in this prototype
 
+- `CapabilityPerformance.fallbackRate` is always `0` - the performance store doesn't yet
+  distinguish a first-choice attempt from a fallback attempt, so there's no real signal to
+  compute this from. `taskContext` is always `undefined` - context-dimension segmentation
+  (industry, geography, ...) isn't built yet, only the field reserved for it.
+- `ExecutionQuote` records are persisted for every step but nothing reads them back yet - no
+  `GET /api/tasks/:id/quotes` endpoint or dashboard UI. `getQuotesForTask()` exists and is
+  tested; wiring it up is future work.
+- Market Optimal, reputation, and the utility function have no dashboards, executor
+  registration, trust tiers, or shadow routing yet - this batch is the scoring/data-model
+  layer those would sit on top of, not the dashboards themselves.
 - `verify-emails` currently runs the same enrichment step as `enrich-contacts` rather than a
   distinct email-verification-only pass.
 - Budget enforcement narrows provider choice at routing time and reports estimated vs. actual

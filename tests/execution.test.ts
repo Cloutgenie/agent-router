@@ -8,6 +8,10 @@ vi.mock("@/lib/history/performanceStore", () => ({
   getAllPerformanceMetrics: vi.fn(async () => []),
 }));
 
+vi.mock("@/lib/market/quoteStore", () => ({
+  recordQuotes: vi.fn(async () => undefined),
+}));
+
 const failing = alwaysFailProvider("failing-provider");
 const backup = alwaysSucceedProvider("backup-provider");
 

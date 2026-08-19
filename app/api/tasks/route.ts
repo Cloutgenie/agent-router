@@ -5,7 +5,14 @@ import { ALL_CAPABILITIES, Capability, QualityPreference, RoutingPreference, Tas
 export const dynamic = "force-dynamic";
 
 const QUALITY_PREFERENCES: QualityPreference[] = ["standard", "high", "best"];
-const ROUTING_PREFERENCES: RoutingPreference[] = ["balanced", "best-quality", "lowest-cost", "fastest"];
+const ROUTING_PREFERENCES: RoutingPreference[] = [
+  "balanced",
+  "best-quality",
+  "lowest-cost",
+  "fastest",
+  "highest-reliability",
+  "market-optimal",
+];
 
 interface TaskRequestBody {
   raw_task?: unknown;
@@ -17,6 +24,20 @@ interface TaskRequestBody {
   result_count?: unknown;
   compare_strategies?: unknown;
   approved_actions?: unknown;
+  minimum_quality?: unknown;
+  minimum_verification?: unknown;
+  maximum_cost?: unknown;
+  maximum_latency_seconds?: unknown;
+}
+
+/** 0-1 constraint field - undefined unless it's a finite number actually in range. */
+function parseUnitFloor(raw: unknown): number | undefined {
+  return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : undefined;
+}
+
+/** Positive-number ceiling field (cost/latency) - undefined unless it's a finite, positive number. */
+function parsePositiveCeiling(raw: unknown): number | undefined {
+  return typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? raw : undefined;
 }
 
 /** Only ever accepts known capability names - never trusts arbitrary client-supplied strings into the approval gate. */
@@ -43,6 +64,10 @@ export function parseConstraints(body: TaskRequestBody | null): TaskConstraints 
         : 15,
     compare_strategies: typeof body?.compare_strategies === "boolean" ? body.compare_strategies : false,
     approved_actions: parseApprovedActions(body?.approved_actions),
+    minimum_quality: parseUnitFloor(body?.minimum_quality),
+    minimum_verification: parseUnitFloor(body?.minimum_verification),
+    maximum_cost: parsePositiveCeiling(body?.maximum_cost),
+    maximum_latency_seconds: parsePositiveCeiling(body?.maximum_latency_seconds),
   };
 }
 
