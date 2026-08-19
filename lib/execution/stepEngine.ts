@@ -1,3 +1,4 @@
+import { Entitlements } from "@/lib/billing/entitlements";
 import { RuntimeConfig } from "@/lib/config";
 import { recordProviderAttempt } from "@/lib/history/performanceStore";
 import { recordQuotes } from "@/lib/market/quoteStore";
@@ -270,6 +271,8 @@ export interface ExecuteStepGraphOptions {
    * single generalist provider cannot cover on its own.
    */
   singleProviderId?: string;
+  /** The billing account's plan entitlements (billing #23) - live mode only. Omitted entirely in demo mode, where every real gated provider is already excluded by mode alone. */
+  entitlements?: Entitlements;
 }
 
 function restrictToSingleProvider(
@@ -288,7 +291,7 @@ function restrictToSingleProvider(
  * than failing the whole step.
  */
 export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGenerator<StepEvent> {
-  const { taskId, traceId, rawTask, steps, resultCount, mode, constraints, config, singleProviderId } = opts;
+  const { taskId, traceId, rawTask, steps, resultCount, mode, constraints, config, singleProviderId, entitlements } = opts;
   const allMetrics = await getAllPerformanceMetrics();
   const metricsByCapability = new Map<string, ProviderPerformanceMetrics[]>();
   for (const m of allMetrics) {
@@ -330,7 +333,7 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
         continue;
       }
 
-      const eligible = restrictToSingleProvider(getEligibleProviders(step.capability, mode, config), singleProviderId);
+      const eligible = restrictToSingleProvider(getEligibleProviders(step.capability, mode, config, undefined, entitlements), singleProviderId);
       const providers = filterByConcurrency(filterByTaskRunCap(eligible, overrides, taskProviderRunCounts), overrides);
       const perfForCapability = metricsByCapability.get(step.capability) ?? [];
       const perfMap = new Map(perfForCapability.map((m) => [m.provider_id, m]));
@@ -365,7 +368,7 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
 
     const queue = createEventQueue<StepEvent>();
     const runOne = async (step: ExecutionStep, emit: (event: StepEvent) => void) => {
-      const eligible = restrictToSingleProvider(getEligibleProviders(step.capability, mode, config), singleProviderId);
+      const eligible = restrictToSingleProvider(getEligibleProviders(step.capability, mode, config, undefined, entitlements), singleProviderId);
       // Only concurrency is re-checked here, not the per-task run cap - that
       // cap already decided step.selectedProviderId/fallbackProviderIds at
       // routing time, using this same step's own reservation. Re-applying it

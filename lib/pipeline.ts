@@ -12,6 +12,7 @@ import { ensureOverridesLoaded } from "@/lib/providers/overrideStore";
 import { getEligibleProviders } from "@/lib/providers/registry";
 import { applyFollowUp, buildFollowUpPlan, FOLLOW_UP_LABELS } from "@/lib/composer/followUp";
 import { getBillingAccount } from "@/lib/billing/account";
+import { Entitlements, getEntitlements } from "@/lib/billing/entitlements";
 import { calculateExecutionPrice, estimateExecutionPriceRange } from "@/lib/billing/pricing";
 import { checkSpendBeforeExecution } from "@/lib/billing/spendingCheck";
 import { ensurePeriodCreditProvisioned, recordExecutionUsage } from "@/lib/billing/usage";
@@ -57,10 +58,10 @@ function friendlyStepLabel(step: ExecutionStep): string {
   return STEP_LIVE_LABELS[step.id] ?? `Running ${step.capability.replace(/-/g, " ")}`;
 }
 
-function estimatePlanCost(plan: ExecutionPlan, mode: Task["mode"], config: RuntimeConfig): number {
+function estimatePlanCost(plan: ExecutionPlan, mode: Task["mode"], config: RuntimeConfig, entitlements?: Entitlements): number {
   let total = 0;
   for (const step of plan.steps) {
-    const providers = getEligibleProviders(step.capability, mode, config);
+    const providers = getEligibleProviders(step.capability, mode, config, undefined, entitlements);
     if (providers.length === 0) continue;
     const prices = providers.map((p) => p.price_per_task).sort((a, b) => a - b);
     total += prices[Math.floor(prices.length / 2)];
@@ -69,11 +70,16 @@ function estimatePlanCost(plan: ExecutionPlan, mode: Task["mode"], config: Runti
 }
 
 /** Cheapest/priciest plausible provider-cost total across the plan - the billing gate's pre-flight estimate range (spec #9), distinct from `estimatePlanCost`'s single median figure. */
-export function estimatePlanCostRange(plan: ExecutionPlan, mode: Task["mode"], config: RuntimeConfig): { lowDollars: number; highDollars: number } {
+export function estimatePlanCostRange(
+  plan: ExecutionPlan,
+  mode: Task["mode"],
+  config: RuntimeConfig,
+  entitlements?: Entitlements
+): { lowDollars: number; highDollars: number } {
   let low = 0;
   let high = 0;
   for (const step of plan.steps) {
-    const providers = getEligibleProviders(step.capability, mode, config);
+    const providers = getEligibleProviders(step.capability, mode, config, undefined, entitlements);
     if (providers.length === 0) continue;
     const prices = providers.map((p) => p.price_per_task);
     low += Math.min(...prices);
@@ -231,10 +237,10 @@ function compareStrategies(single: StrategyRunSummary, routed: StrategyRunSummar
 }
 
 /** The single generalist most likely to be reached for if a user "just picked one provider." */
-function pickSingleProviderBaseline(plan: ExecutionPlan, mode: Task["mode"], config: RuntimeConfig): string | undefined {
+function pickSingleProviderBaseline(plan: ExecutionPlan, mode: Task["mode"], config: RuntimeConfig, entitlements?: Entitlements): string | undefined {
   const counts = new Map<string, number>();
   for (const step of plan.steps) {
-    for (const provider of getEligibleProviders(step.capability, mode, config)) {
+    for (const provider of getEligibleProviders(step.capability, mode, config, undefined, entitlements)) {
       counts.set(provider.id, (counts.get(provider.id) ?? 0) + 1);
     }
   }
@@ -303,10 +309,18 @@ export async function* runTaskPipeline(opts: RunPipelineOptions): AsyncGenerator
   // A blocked estimate refuses the whole task before any provider runs,
   // same principle as the existing risk-class approval gate: never silently
   // downgrade past a limit the task or account owner set.
+  //
+  // `entitlements` is computed here (once, live mode only) and threaded
+  // through everything below - the estimate above, the real routing run,
+  // and the comparison-mode baseline - so a plan-gated provider (billing
+  // #23, e.g. Apollo without `apollo_enrichment`) is consistently excluded
+  // everywhere, not just at execution time.
+  let entitlements: Entitlements | undefined;
   if (config.mode === "live") {
-    const costRange = estimatePlanCostRange(plan, config.mode, config);
-    const priceEstimate = estimateExecutionPriceRange(costRange.lowDollars, costRange.highDollars);
     const billingAccount = await getBillingAccount();
+    entitlements = getEntitlements(billingAccount.plan);
+    const costRange = estimatePlanCostRange(plan, config.mode, config, entitlements);
+    const priceEstimate = estimateExecutionPriceRange(costRange.lowDollars, costRange.highDollars);
     await ensurePeriodCreditProvisioned(billingAccount);
     const spendCheck = await checkSpendBeforeExecution(billingAccount, priceEstimate, constraints.budget);
     if (!spendCheck.allowed) {
@@ -361,6 +375,7 @@ export async function* runTaskPipeline(opts: RunPipelineOptions): AsyncGenerator
     mode: config.mode,
     constraints,
     config,
+    entitlements,
   })) {
     yield* translateStepEvent(stepEvent, emitTrace);
   }
@@ -391,14 +406,14 @@ export async function* runTaskPipeline(opts: RunPipelineOptions): AsyncGenerator
   yield emitTrace("Ranking opportunities", `${buyer_results.length} qualified, ${excluded_results.length} excluded`);
 
   const evaluation_summary = computeEvaluationSummary(plan, constraints.allow_parallel ?? true, buyer_results, excluded_results);
-  const estimated = estimatePlanCost(plan, config.mode, config);
+  const estimated = estimatePlanCost(plan, config.mode, config, entitlements);
   const budget_outcome = computeBudgetOutcome(constraints.budget, estimated, evaluation_summary.total_cost, plan);
 
   let comparison: StrategyComparison | undefined;
   if (constraints.compare_strategies && workflow === "buyer-discovery" && !opts.followUpAction) {
     yield emitTrace("Comparing routing strategies", "Running a single-provider baseline for comparison");
     const singlePlan = buildExecutionPlan(rawTask, capabilities, workflow);
-    const singleProviderId = pickSingleProviderBaseline(singlePlan, config.mode, config);
+    const singleProviderId = pickSingleProviderBaseline(singlePlan, config.mode, config, entitlements);
     const singleRunIterator = executeStepGraph({
       taskId: `${taskId}-single`,
       traceId,
@@ -409,6 +424,7 @@ export async function* runTaskPipeline(opts: RunPipelineOptions): AsyncGenerator
       constraints,
       config,
       singleProviderId,
+      entitlements,
     })[Symbol.asyncIterator]();
     // Comparison mode doesn't stream this baseline run's step events - only the final comparison matters.
     while (!(await singleRunIterator.next()).done) {

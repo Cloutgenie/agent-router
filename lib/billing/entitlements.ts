@@ -28,3 +28,23 @@ export function getEntitlements(plan: BillingPlan): Entitlements {
     },
   };
 }
+
+/**
+ * Which real provider ids require which plan feature (spec #23's
+ * entitlements-gate-router-eligibility instruction). Deliberately a small,
+ * explicit map rather than deriving it from capabilities - most providers
+ * (Tavily, the LLM adapters, every mock) require nothing; only the ones
+ * here are gated. Keyed by the adapter's own `AgentProvider.id` string, so
+ * renaming a provider id must update this map too.
+ */
+const PROVIDER_FEATURE_REQUIREMENT: Record<string, EntitlementFeature> = {
+  "apollo-provider": "apollo_enrichment",
+  "browser-executor": "browser_execution",
+  "mcp-provider": "mcp",
+};
+
+/** Whether a specific provider is allowed under a plan's entitlements - true for every provider not in the gated set above. */
+export function isProviderEntitled(providerId: string, entitlements: Entitlements): boolean {
+  const required = PROVIDER_FEATURE_REQUIREMENT[providerId];
+  return required == null || entitlements.can(required);
+}

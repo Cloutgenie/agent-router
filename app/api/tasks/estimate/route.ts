@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { parseConstraints } from "@/app/api/tasks/route";
 import { capabilityClassifier } from "@/lib/capabilities/classifier";
 import { getRuntimeConfig } from "@/lib/config";
+import { getBillingAccount } from "@/lib/billing/account";
+import { getEntitlements } from "@/lib/billing/entitlements";
 import { estimateExecutionPriceRange } from "@/lib/billing/pricing";
 import { getBillingStatusSummary } from "@/lib/billing/status";
 import { detectWorkflow, buildExecutionPlan } from "@/lib/planner/taskPlanner";
@@ -39,7 +41,9 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const costRange = estimatePlanCostRange(plan, config.mode, config);
+  const account = await getBillingAccount();
+  const entitlements = getEntitlements(account.plan);
+  const costRange = estimatePlanCostRange(plan, config.mode, config, entitlements);
   const priceEstimate = estimateExecutionPriceRange(costRange.lowDollars, costRange.highDollars);
   const status = await getBillingStatusSummary();
 

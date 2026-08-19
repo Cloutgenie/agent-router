@@ -668,9 +668,32 @@ so an admin grant had zero visible effect on `/settings/billing`. Fixed by addin
 figure both the customer and admin views now read; confirmed live (a $10 grant correctly moved
 included/remaining from $40.00 to $50.00 on both pages, not just in the ledger).
 
-Not built yet: entitlements actually gating router/provider eligibility, metered overage usage
-reporting to Stripe (`STRIPE_EXECUTION_USAGE_PRICE_ID` is reserved but unread), and third-party
-executor payouts (Stripe Connect) - explicitly a future phase per the original spec, not started.
+**Entitlements gating router eligibility** (`lib/billing/entitlements.ts::isProviderEntitled`,
+wired into `lib/providers/registry.ts::getEligibleProviders`) - a plan's feature flags now
+actually exclude the real providers they gate, not just describe them. A small, explicit map
+(`PROVIDER_FEATURE_REQUIREMENT`) ties three real provider ids to the plan feature they need -
+`apollo-provider` → `apollo_enrichment`, `browser-executor` → `browser_execution`,
+`mcp-provider` → `mcp` - every other provider (every mock, Tavily, the LLM adapters) is
+ungated. `getEligibleProviders` takes `entitlements` as a new, optional last parameter:
+omitted, it changes nothing (every pre-existing call site - the executors page, benchmarks,
+etc. - keeps working exactly as before); passed, a gated provider is excluded outright and the
+step degrades to whatever else is eligible (typically the matching mock, which is never gated)
+rather than failing with no candidates at all. Only `lib/pipeline.ts`'s real live-task routing
+path computes and threads it through (the pre-flight estimate, the actual routing/execution run,
+and the comparison-mode single-provider baseline all use the same instance, live mode only -
+Demo Mode is untouched, since every real gated provider is already excluded there by mode alone).
+
+Live-verified both directions by editing the billing account's plan directly and running real
+live tasks: on **Starter** (no `apollo_enrichment`/`browser_execution`), a contact-enrichment
+step's candidates were `["contact-miner"]` only - Apollo never appeared - and an
+official-source-verification step's candidates were `["browser-verifier"]` (the mock) only,
+with the real `browser-executor` absent; switching the same account to **Pro** and re-running
+the identical task put `apollo-provider` and `browser-executor` back in the candidate pool and
+both were correctly selected. Confirmed in both directions, not just "always excluded."
+
+Not built yet: metered overage usage reporting to Stripe (`STRIPE_EXECUTION_USAGE_PRICE_ID` is
+reserved but unread), and third-party executor payouts (Stripe Connect) - explicitly a future
+phase per the original spec, not started.
 
 ## Data model
 

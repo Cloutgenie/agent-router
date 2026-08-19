@@ -1,3 +1,4 @@
+import { Entitlements, isProviderEntitled } from "@/lib/billing/entitlements";
 import { getRuntimeConfig, RuntimeConfig } from "@/lib/config";
 import { getCachedOverrides } from "@/lib/providers/overrideStore";
 import { AgentProvider, Capability, ExecutionMode, ProviderOverride, ProviderSummary } from "@/types";
@@ -72,12 +73,24 @@ function round2(n: number): number {
  * cannot execute. Kill switches and cost ceilings (spec #33,
  * lib/providers/overrideStore.ts) are applied before either of those checks
  * - a disabled provider is never eligible, in any mode, for any reason.
+ *
+ * `entitlements`, when passed, excludes providers a plan doesn't include
+ * (spec #23) - e.g. Apollo requires `apollo_enrichment`. Optional and
+ * omitted by default so every existing caller that doesn't pass one (the
+ * executors/benchmarks pages, anything not gating a real billed task) keeps
+ * its current behavior unchanged; only live-task routing
+ * (lib/execution/stepEngine.ts, lib/pipeline.ts's estimate/baseline paths)
+ * passes the account's real entitlements. A gated provider degrades to
+ * whatever else is eligible for the capability (typically a mock, which is
+ * never gated) rather than producing a hard "no eligible provider" failure
+ * on its own.
  */
 export function getEligibleProviders(
   capability: Capability,
   mode: ExecutionMode,
   config: RuntimeConfig = getRuntimeConfig(),
-  overrides: Record<string, ProviderOverride> = getCachedOverrides()
+  overrides: Record<string, ProviderOverride> = getCachedOverrides(),
+  entitlements?: Entitlements
 ): AgentProvider[] {
   const all = getAllProviders(config);
   return all
@@ -86,6 +99,7 @@ export function getEligibleProviders(
       const override = overrides[provider.id];
       if (override?.enabled === false) return false;
       if (override?.maxCostPerTask != null && provider.price_per_task > override.maxCostPerTask) return false;
+      if (entitlements && !isProviderEntitled(provider.id, entitlements)) return false;
       if (mode === "demo") return provider.protocol === "mock";
       return provider.configured;
     })
