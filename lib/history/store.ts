@@ -19,11 +19,20 @@ async function writeAll(tasks: Task[]): Promise<void> {
   await fs.writeFile(HISTORY_PATH, JSON.stringify(tasks, null, 2), "utf-8");
 }
 
-/** Simple local JSON-file persistence - no external database needed for V0. */
+/**
+ * Simple local JSON-file persistence - no external database needed for V0.
+ * Swallows write failures (e.g. a read-only filesystem on serverless
+ * deployments like Vercel) so a persistence hiccup never breaks the task
+ * pipeline itself - history is a nice-to-have, not a dependency of routing.
+ */
 export async function saveTaskToHistory(task: Task): Promise<void> {
-  const tasks = await readAll();
-  tasks.unshift(task);
-  await writeAll(tasks.slice(0, MAX_HISTORY));
+  try {
+    const tasks = await readAll();
+    tasks.unshift(task);
+    await writeAll(tasks.slice(0, MAX_HISTORY));
+  } catch (err) {
+    console.warn("Could not persist task history:", err);
+  }
 }
 
 export async function listHistory(): Promise<TaskHistoryEntry[]> {
