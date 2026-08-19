@@ -23,6 +23,16 @@ describe("getRiskClass", () => {
     expect(getRiskClass("file-write")).toBe("LOW_RISK_WRITE");
     expect(getRiskClass("email-send")).toBe("EXTERNAL_COMMUNICATION");
   });
+
+  it("classifies persistent-agent capabilities that step outside the read-only boundary as high-risk", () => {
+    expect(getRiskClass("authenticated-browser")).toBe("HIGH_RISK_WRITE");
+    expect(getRiskClass("terminal-execution")).toBe("HIGH_RISK_WRITE");
+    expect(getRiskClass("agent-delegation")).toBe("HIGH_RISK_WRITE");
+  });
+
+  it("treats 'long-running' as a duration label, not a risk signal by itself", () => {
+    expect(getRiskClass("long-running-task")).toBe("READ_ONLY");
+  });
 });
 
 describe("requiresApproval", () => {
@@ -64,6 +74,13 @@ describe("evaluateApproval", () => {
   it("does not approve one write action just because a different one was pre-approved", () => {
     const approval = evaluateApproval("email-send", ["crm-write"]);
     expect(approval.status).toBe("pending");
+  });
+
+  it("blocks a high-risk persistent-agent capability by default, same as any other non-read-only action", () => {
+    const approval = evaluateApproval("terminal-execution", []);
+    expect(approval.required).toBe(true);
+    expect(approval.status).toBe("pending");
+    expect(approval.reason).toMatch(/high-risk write/);
   });
 });
 

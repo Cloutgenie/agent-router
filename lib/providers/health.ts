@@ -1,9 +1,20 @@
 import { RuntimeConfig } from "@/lib/config";
-import { AgentProvider, ProviderHealth, ProviderHealthState } from "@/types";
+import { ensureOverridesLoaded } from "@/lib/providers/overrideStore";
+import { AgentProvider, ProviderHealth, ProviderHealthState, ProviderOverride } from "@/types";
 import { getAllProviders } from "./registry";
 
-async function checkOne(provider: AgentProvider): Promise<ProviderHealth> {
+async function checkOne(provider: AgentProvider, override: ProviderOverride | undefined): Promise<ProviderHealth> {
   const checked_at = new Date().toISOString();
+
+  if (override?.enabled === false) {
+    return {
+      provider_id: provider.id,
+      provider_name: provider.name,
+      state: "disabled",
+      checked_at,
+      detail: override.reason ?? `Disabled ${override.updatedBy === "auto" ? "automatically" : "by an operator"}.`,
+    };
+  }
 
   if (provider.protocol !== "mock" && !provider.configured) {
     return {
@@ -12,6 +23,16 @@ async function checkOne(provider: AgentProvider): Promise<ProviderHealth> {
       state: "missing_credentials",
       checked_at,
       detail: "No credentials configured for this provider.",
+    };
+  }
+
+  if (override?.degraded) {
+    return {
+      provider_id: provider.id,
+      provider_name: provider.name,
+      state: "degraded",
+      checked_at,
+      detail: override.reason ?? `Degraded ${override.updatedBy === "auto" ? "automatically" : "by an operator"}.`,
     };
   }
 
@@ -38,12 +59,14 @@ async function checkOne(provider: AgentProvider): Promise<ProviderHealth> {
 
 /**
  * Provider health (V4 #3) - checked before routing any live work. The
- * router itself never selects a provider currently reporting `unavailable`
- * or `missing_credentials` (see getEligibleProviders, which already
- * excludes unconfigured adapters); this endpoint is what surfaces that
- * state to the UI and to a pre-flight check if one is added later.
+ * router itself never selects a provider currently reporting `unavailable`,
+ * `disabled`, or `missing_credentials` (see getEligibleProviders, which
+ * already excludes them); this endpoint is what surfaces that state to the
+ * UI. A manual or automatic kill switch (spec #33-34) always wins over
+ * whatever the provider's own healthCheck() would have reported.
  */
 export async function checkAllProviderHealth(config: RuntimeConfig): Promise<ProviderHealth[]> {
   const providers = getAllProviders(config);
-  return Promise.all(providers.map(checkOne));
+  const overrides = await ensureOverridesLoaded();
+  return Promise.all(providers.map((p) => checkOne(p, overrides[p.id])));
 }

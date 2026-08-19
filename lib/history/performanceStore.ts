@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { maybeAutoManage } from "@/lib/policy/autoSafety";
 import { Capability, ProviderPerformanceMetrics, ProviderPerformanceRecord } from "@/types";
 
 const PERFORMANCE_PATH = path.join(process.cwd(), "data", "provider-performance.json");
@@ -61,7 +62,7 @@ interface RecordAttemptInput {
  */
 export async function recordProviderAttempt(input: RecordAttemptInput): Promise<void> {
   try {
-    await enqueue((all) => {
+    const updated = await enqueue((all) => {
       const k = key(input.provider_id, input.capability);
       const existing = all[k] ?? emptyRecord(input.provider_id, input.capability);
       existing.tasks_attempted += 1;
@@ -70,7 +71,9 @@ export async function recordProviderAttempt(input: RecordAttemptInput): Promise<
       existing.latency_sum += input.latency_seconds;
       existing.cost_sum += input.cost;
       all[k] = existing;
+      return existing;
     });
+    await maybeAutoManage(input.provider_id, updated);
   } catch (err) {
     console.warn("Could not persist provider performance:", err);
   }
@@ -89,13 +92,15 @@ export async function recordVerificationOutcome(
   passed: boolean
 ): Promise<void> {
   try {
-    await enqueue((all) => {
+    const updated = await enqueue((all) => {
       const k = key(providerId, capability);
       const existing = all[k] ?? emptyRecord(providerId, capability);
       existing.verification_total += 1;
       if (passed) existing.verification_pass_count += 1;
       all[k] = existing;
+      return existing;
     });
+    await maybeAutoManage(providerId, updated);
   } catch (err) {
     console.warn("Could not persist verification outcome:", err);
   }

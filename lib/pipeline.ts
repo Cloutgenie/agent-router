@@ -7,6 +7,7 @@ import { executeStepGraph, StepEvent } from "@/lib/execution/stepEngine";
 import { detectWorkflow, buildExecutionPlan } from "@/lib/planner/taskPlanner";
 import { getHistoryTask, saveTaskToHistory } from "@/lib/history/store";
 import { recordVerificationOutcome } from "@/lib/history/performanceStore";
+import { ensureOverridesLoaded } from "@/lib/providers/overrideStore";
 import { getEligibleProviders } from "@/lib/providers/registry";
 import { applyFollowUp, buildFollowUpPlan, FOLLOW_UP_LABELS } from "@/lib/composer/followUp";
 import {
@@ -251,6 +252,10 @@ export async function* runTaskPipeline(opts: RunPipelineOptions): AsyncGenerator
   const createdAt = nowIso();
   const config = getRuntimeConfig();
   const trace: TraceEvent[] = [];
+  // Warms the in-memory override cache (kill switches, spec #33) so every
+  // synchronous eligibility check for the rest of this run - and any other
+  // request already in flight in this process - sees the latest state.
+  await ensureOverridesLoaded();
 
   const emitTrace = (label: string, detail?: string): PipelineEvent => {
     const event: TraceEvent = { label, detail, timestamp: nowIso() };

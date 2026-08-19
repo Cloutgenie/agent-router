@@ -127,6 +127,10 @@ const CAPABILITY_KEYWORDS: Record<Capability, string[]> = {
   "calendar-write": ["schedule a meeting", "book a meeting", "add to calendar", "schedule a call"],
   "file-read": ["read file", "open file", "read the document"],
   "file-write": ["save file", "write file", "upload file", "save the document"],
+  "long-running-task": ["long-running", "long running task", "keep working on this", "run this in the background"],
+  "authenticated-browser": ["log into", "log in to", "sign into", "authenticated browser", "browse while logged in"],
+  "terminal-execution": ["run a command", "run this command", "execute a script", "terminal command", "shell command"],
+  "agent-delegation": ["delegate this to an agent", "hand this off to an agent", "have an agent handle", "assign this to an agent"],
 };
 
 const DEFAULT_CAPABILITIES: Capability[] = ["web-research", "summarization"];

@@ -30,6 +30,8 @@ export interface RuntimeConfig {
   restConfigured: boolean;
   browserExecutionConfigured: boolean;
   maxBrowserPagesPerTask: number;
+  /** No concrete vendor is wired yet - see lib/providers/adapters/persistentAgentExecutor.ts. Always false until one is. */
+  persistentAgentConfigured: boolean;
 }
 
 function parseGrantedScopes(raw: string | undefined): MCPPermissionScope[] {
@@ -54,5 +56,9 @@ export function getRuntimeConfig(): RuntimeConfig {
     restConfigured: liveEnabled && Boolean(process.env.REST_PROVIDER_URL),
     browserExecutionConfigured: liveEnabled && process.env.ENABLE_BROWSER_EXECUTION === "true",
     maxBrowserPagesPerTask: Number(process.env.MAX_BROWSER_PAGES_PER_TASK ?? 10),
+    persistentAgentConfigured:
+      liveEnabled &&
+      process.env.ENABLE_PERSISTENT_AGENTS === "true" &&
+      Boolean(process.env.PERSISTENT_AGENT_API_URL),
   };
 }

@@ -110,6 +110,10 @@ const CAPABILITY_DESCRIPTIONS: Partial<Record<Capability, string>> = {
   "calendar-write": "Schedule a calendar event",
   "file-read": "Read a connected file or document",
   "file-write": "Write a connected file or document",
+  "long-running-task": "Run a long-lived task on a persistent worker",
+  "authenticated-browser": "Browse the web signed into an account",
+  "terminal-execution": "Run a command on a terminal/shell worker",
+  "agent-delegation": "Delegate part of the work to an external agent",
 };
 
 /**

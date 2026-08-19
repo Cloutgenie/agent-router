@@ -1,23 +1,196 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ProviderHealth, ProviderHealthState, ProviderPerformanceMetrics, ProviderSummary } from "@/types";
+import { useRouter } from "next/navigation";
+import { ProviderHealth, ProviderHealthState, ProviderOverride, ProviderPerformanceMetrics, ProviderSummary } from "@/types";
 
 const HEALTH_STYLES: Record<ProviderHealthState, string> = {
   healthy: "border-good/30 bg-good-soft text-good",
   degraded: "border-warn/30 bg-warn-soft text-warn",
   unavailable: "border-bad/30 bg-bad-soft text-bad",
+  disabled: "border-bad/40 bg-bad-soft text-bad",
   missing_credentials: "border-border text-muted-dim",
 };
+
+type OverrideDraft = Partial<
+  Pick<ProviderOverride, "enabled" | "degraded" | "maxCostPerTask" | "timeoutMs" | "maxRetries" | "maxConcurrentRuns" | "maxRunsPerTask">
+>;
+
+function draftFrom(override: ProviderOverride | undefined): OverrideDraft {
+  return {
+    enabled: override?.enabled ?? true,
+    degraded: override?.degraded ?? false,
+    maxCostPerTask: override?.maxCostPerTask,
+    timeoutMs: override?.timeoutMs,
+    maxRetries: override?.maxRetries,
+    maxConcurrentRuns: override?.maxConcurrentRuns,
+    maxRunsPerTask: override?.maxRunsPerTask,
+  };
+}
+
+function KillSwitchPanel({ providerId, override }: { providerId: string; override: ProviderOverride | undefined }) {
+  const router = useRouter();
+  const [draft, setDraft] = useState<OverrideDraft>(() => draftFrom(override));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/executors/${providerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draft),
+      });
+      if (!res.ok) throw new Error(`Save failed (${res.status})`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function reset() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/executors/${providerId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Reset failed (${res.status})`);
+      setDraft(draftFrom(undefined));
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reset failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputClass =
+    "w-24 rounded-lg border border-border bg-surface-raised px-2 py-1 text-[12px] text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
+
+  return (
+    <div className="rounded-lg border border-border bg-surface p-3">
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-dim">Kill switches</div>
+      {override && (
+        <p className="mb-2 text-[11px] text-muted">
+          Currently {override.enabled === false ? "disabled" : override.degraded ? "degraded" : "at defaults"}
+          {override.updatedBy === "auto" ? " (set automatically)" : override.enabled === false || override.degraded ? " (set by an operator)" : ""}
+          {override.reason ? ` - ${override.reason}` : ""}
+        </p>
+      )}
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="flex items-center gap-1.5 text-[12px] text-muted">
+          <input
+            type="checkbox"
+            checked={draft.enabled ?? true}
+            onChange={(e) => setDraft((d) => ({ ...d, enabled: e.target.checked }))}
+            className="h-3.5 w-3.5 rounded border-border-strong accent-accent"
+          />
+          Enabled
+        </label>
+        <label className="flex items-center gap-1.5 text-[12px] text-muted">
+          <input
+            type="checkbox"
+            checked={draft.degraded ?? false}
+            onChange={(e) => setDraft((d) => ({ ...d, degraded: e.target.checked }))}
+            className="h-3.5 w-3.5 rounded border-border-strong accent-accent"
+          />
+          Degraded
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] text-muted-dim">
+          Max cost ($/task)
+          <input
+            type="number"
+            min={0}
+            step={0.1}
+            value={draft.maxCostPerTask ?? ""}
+            onChange={(e) => setDraft((d) => ({ ...d, maxCostPerTask: e.target.value ? Number(e.target.value) : undefined }))}
+            placeholder="none"
+            className={inputClass}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] text-muted-dim">
+          Timeout (ms)
+          <input
+            type="number"
+            min={500}
+            step={500}
+            value={draft.timeoutMs ?? ""}
+            onChange={(e) => setDraft((d) => ({ ...d, timeoutMs: e.target.value ? Number(e.target.value) : undefined }))}
+            placeholder="default"
+            className={inputClass}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] text-muted-dim">
+          Retry limit
+          <input
+            type="number"
+            min={1}
+            max={5}
+            value={draft.maxRetries ?? ""}
+            onChange={(e) => setDraft((d) => ({ ...d, maxRetries: e.target.value ? Number(e.target.value) : undefined }))}
+            placeholder="1"
+            className={inputClass}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] text-muted-dim">
+          Max concurrent
+          <input
+            type="number"
+            min={1}
+            value={draft.maxConcurrentRuns ?? ""}
+            onChange={(e) => setDraft((d) => ({ ...d, maxConcurrentRuns: e.target.value ? Number(e.target.value) : undefined }))}
+            placeholder="none"
+            className={inputClass}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] text-muted-dim">
+          Max runs/task
+          <input
+            type="number"
+            min={1}
+            value={draft.maxRunsPerTask ?? ""}
+            onChange={(e) => setDraft((d) => ({ ...d, maxRunsPerTask: e.target.value ? Number(e.target.value) : undefined }))}
+            placeholder="none"
+            className={inputClass}
+          />
+        </label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-accent-strong disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={reset}
+            disabled={saving || !override}
+            className="rounded-lg border border-border px-3 py-1.5 text-[12px] text-muted transition hover:bg-surface-raised hover:text-foreground disabled:opacity-50"
+          >
+            Reset to default
+          </button>
+        </div>
+      </div>
+      {error && <p className="mt-2 text-[11px] text-bad">{error}</p>}
+    </div>
+  );
+}
 
 export function ProvidersTable({
   providers,
   health,
   metricsByProvider,
+  overridesByProvider,
 }: {
   providers: ProviderSummary[];
   health: ProviderHealth[];
   metricsByProvider: Record<string, ProviderPerformanceMetrics[]>;
+  overridesByProvider: Record<string, ProviderOverride>;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const healthById = new Map(health.map((h) => [h.provider_id, h]));
@@ -80,7 +253,7 @@ export function ProvidersTable({
                 </tr>
                 {isOpen && (
                   <tr className="border-b border-border/60 bg-surface-raised/50">
-                    <td colSpan={8} className="px-3 py-3">
+                    <td colSpan={8} className="space-y-3 px-3 py-3">
                       {metrics.length === 0 ? (
                         <p className="text-[12px] text-muted-dim">No tasks routed to this provider yet.</p>
                       ) : (
@@ -96,6 +269,7 @@ export function ProvidersTable({
                           ))}
                         </div>
                       )}
+                      <KillSwitchPanel providerId={provider.id} override={overridesByProvider[provider.id]} />
                     </td>
                   </tr>
                 )}

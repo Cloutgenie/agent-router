@@ -5,6 +5,7 @@ import { getRuntimeConfig } from "@/lib/config";
 import { getAllPerformanceMetrics } from "@/lib/history/performanceStore";
 import { allExecutionPolicies } from "@/lib/policy/executionPolicy";
 import { checkAllProviderHealth } from "@/lib/providers/health";
+import { listProviderOverrides } from "@/lib/providers/overrideStore";
 import { getAllProviders, toProviderSummary } from "@/lib/providers/registry";
 import { ProviderPerformanceMetrics } from "@/types";
 
@@ -13,7 +14,11 @@ export const dynamic = "force-dynamic";
 export default async function ProvidersPage() {
   const config = getRuntimeConfig();
   const providers = getAllProviders(config).map(toProviderSummary);
-  const [health, allMetrics] = await Promise.all([checkAllProviderHealth(config), getAllPerformanceMetrics()]);
+  const [health, allMetrics, overrides] = await Promise.all([
+    checkAllProviderHealth(config),
+    getAllPerformanceMetrics(),
+    listProviderOverrides(),
+  ]);
 
   const metricsByProvider: Record<string, ProviderPerformanceMetrics[]> = {};
   for (const m of allMetrics) {
@@ -36,7 +41,7 @@ export default async function ProvidersPage() {
       </div>
 
       <div className="card mb-6 p-4 sm:p-5">
-        <ProvidersTable providers={providers} health={health} metricsByProvider={metricsByProvider} />
+        <ProvidersTable providers={providers} health={health} metricsByProvider={metricsByProvider} overridesByProvider={overrides} />
       </div>
 
       <ExecutionPolicyCard policies={allExecutionPolicies()} />

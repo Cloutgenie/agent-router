@@ -32,6 +32,15 @@ const CAPABILITY_RISK_CLASS: Record<Capability, RiskClass> = {
   "calendar-write": "LOW_RISK_WRITE",
   "file-read": "READ_ONLY",
   "file-write": "LOW_RISK_WRITE",
+  // A persistent worker's own risk depends on what it actually does once
+  // running, not on "long-running" alone - the label itself carries no
+  // extra privilege.
+  "long-running-task": "READ_ONLY",
+  // Signing in as the user and acting inside an authenticated session steps
+  // outside the read-only browser's safety boundary entirely.
+  "authenticated-browser": "HIGH_RISK_WRITE",
+  "terminal-execution": "HIGH_RISK_WRITE",
+  "agent-delegation": "HIGH_RISK_WRITE",
 };
 
 const RISK_CLASS_LABEL: Record<RiskClass, string> = {

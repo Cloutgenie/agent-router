@@ -155,10 +155,11 @@ interface AgentProvider {
 `MockHiringProvider`, `MockContactProvider` (light role lookup, or full name/email/LinkedIn
 enrichment when a follow-up sets `context.deepEnrichment`), `MockVerificationProvider`
 (cross-checks upstream claims before the Evaluator's own independent pass), `MockBrowserExecutor`
-(simulates re-checking an official careers page - see "Browser execution" below), and
-`MockMCPExecutor` (simulates a generic MCP tool call). They draw from `data/demo-companies.ts` -
-25 clearly fictional companies spanning strong-to-weak signal strength, so the Evaluator has
-real records to reject, not just ones to rubber-stamp.
+(simulates re-checking an official careers page - see "Browser execution" below),
+`MockMCPExecutor` (simulates a generic MCP tool call), and `MockPersistentAgentExecutor`
+(simulates a persistent worker's full lifecycle - see "Persistent agent executors" below). They
+draw from `data/demo-companies.ts` - 25 clearly fictional companies spanning strong-to-weak
+signal strength, so the Evaluator has real records to reject, not just ones to rubber-stamp.
 
 **Real adapters** (`lib/providers/adapters/`):
 
@@ -177,6 +178,8 @@ real records to reject, not just ones to rubber-stamp.
 - `ApolloProvider`, `ClayProvider`, `A2AProvider`, `RestProvider` are structured exactly like a
   real integration but throw a clear `ProviderNotImplementedError` from `execute()` until
   someone fills in the TODO - see "Going from mock to real" below.
+- `PersistentAgentExecutor` (`persistentAgentExecutor.ts`) is the same kind of honest shell, for
+  a different reason - see "Persistent agent executors" below.
 
 Every real adapter reports `configured` based on which env vars from `.env.example` are
 actually present.
@@ -220,6 +223,35 @@ listed in `MCP_GRANTED_SCOPES` - the router never even sees an ungranted write c
 eligible, so it can't select a tool call nobody approved (tested in `tests/mcpProvider.test.ts`,
 including a full mocked-server round trip for a granted write call).
 
+#### Persistent agent executors (`lib/providers/adapters/persistentAgentExecutor.ts`)
+
+For longer-lived computer/browser/terminal work - a persistent browser session, a computer-use
+worker, a terminal agent, a future third-party worker - the spec this was built against calls
+for `startTask` / `getStatus` / `resumeTask` / `cancelTask` alongside the usual `execute()`
+(`PersistentAgentExecutor` in `types/index.ts`), and four new capabilities:
+`long-running-task`, `authenticated-browser`, `terminal-execution`, `agent-delegation`.
+
+**No concrete vendor has a settled, publicly documented programmatic contract to build a real
+integration against here** - unlike Tavily/Gemini/MCP, which are real integrations elsewhere in
+this file. So the real adapter is deliberately an honest, unconnected shell: it implements the
+full interface and reports real configuration state (`configured` only becomes true once an
+operator sets both `ENABLE_PERSISTENT_AGENTS=true` *and* `PERSISTENT_AGENT_API_URL`), but every
+method throws a clear `ProviderNotImplementedError` if ever actually reached - which, because
+the router never selects an unconfigured adapter, it never is by default. Architecture
+correctness over pretending a provider is connected.
+
+`MockPersistentAgentExecutor` is not that thin - it actually exercises the full lifecycle in
+Demo Mode: `startTask` returns immediately with a real in-progress record, `getStatus` reflects
+genuine `pending → running → completed`/`failed`/`cancelled` state transitions if polled
+mid-flight, and `execute()` (the synchronous bridge the current router/execution engine calls)
+awaits that same in-flight run to completion rather than starting a second, duplicate one -
+covered directly in `tests/persistentAgentExecutor.test.ts`, including a regression test for
+exactly that double-run bug. Because `authenticated-browser` / `terminal-execution` /
+`agent-delegation` step outside the read-only browser's safety boundary, they're classified
+`HIGH_RISK_WRITE` in the execution policy above and blocked by the same approval gate as any
+other non-read-only capability - a goal that would trigger one of them is refused by default
+until explicitly pre-approved, exactly like `email-send` or `crm-write`.
+
 **Mode.** `lib/config.ts` reads `ENABLE_LIVE_PROVIDERS`. In Demo Mode the router only ever
 sees mocks. In Live Mode, configured real adapters join the pool *alongside* the mocks, which
 stay as the fallback safety net - an unconfigured or misbehaving real adapter degrades to a
@@ -249,6 +281,37 @@ Execute's advanced options) - there is no default-allow path. `/executors` shows
 risk-class table for every capability. `MockMCPExecutor` can actually execute an approved
 write-capable step in Demo Mode, clearly labeled `[DEMO SIMULATION]`, so the whole
 block → approve → route → execute flow is demonstrable with zero credentials.
+
+**Kill switches & runtime caps (spec #33, #35 - `lib/providers/overrideStore.ts`,
+`lib/providers/concurrencyTracker.ts`).** Every provider can be enabled/disabled, degraded, and
+given a max cost/task, timeout, retry limit, max concurrent runs, and max runs/task - all
+editable live from `/executors` (expand a row → Kill switches), with no redeploy. Changes take
+effect on the very next routing decision in the same process, not just future ones: overrides
+live in an in-memory cache that every write updates synchronously, backed by
+`data/provider-overrides.json` for durability across restarts. A disabled provider is excluded
+from eligibility in every mode; a degraded one stays eligible but scores far lower and reports
+`degraded` health; a cost ceiling excludes a provider outright rather than letting it run over
+budget; a timeout races the provider's own call and counts a slow response as a failure; a
+retry limit controls how many times the *same* provider is retried before the engine moves to
+the next fallback candidate; concurrency and per-task run caps are enforced with a real
+process-wide counter and a per-task counter respectively - both are covered by integration
+tests that run two tasks concurrently against a capped provider and assert only one call was
+ever in flight at once (`tests/stepEngineLimits.test.ts`).
+
+**Automatic safety disable (spec #34 - `lib/policy/autoSafety.ts`).** There's no background
+job in this app, so this reacts to the same signal that would justify it, the moment it lands:
+right after `lib/history/performanceStore.ts` persists a provider attempt or a verification
+outcome. A provider crossing a 50% failure rate (over at least 5 attempts) gets auto-degraded;
+85% gets it auto-disabled. A provider whose claims fail independent verification at least 50%
+of the time (over at least 5 checks) gets auto-degraded too - this is a real, currently-firing
+example in this repo's own dev history: `MockContactProvider`'s light-enrichment mode never
+carries enough evidence to pass verification, so accumulated local task history genuinely
+auto-degrades it. A provider whose average cost sustains well above its configured ceiling
+also gets auto-degraded. Automation only ever escalates risk and never fights a human: it will
+not touch a provider a human already set an override on, and it will not undo its own prior
+decision - only an operator clearing it from `/executors` does that. Malformed-response rate
+and a dedicated false-contact detector aren't wired as distinct tracked signals yet - see
+"intentionally simplified" below.
 
 ### 5. Evaluator (`lib/evaluation/verifier.ts`)
 
@@ -332,7 +395,10 @@ See `types/index.ts` for the complete set - `Agent`/`AgentProvider`, `ProviderTa
 `ExecutionPlan`, `OpportunityScore`, `BuyerRecord`, `Task`, `StrategyComparison`,
 `RoutingExperiment`, `ProviderPerformanceMetrics`, `ProviderHealth`, `Company` (canonical,
 deduplicated), `MCPToolDescriptor`/`MCPToolResult`, `ExecutionPolicy`/`ExecutionApproval`
-(risk class + approval status per capability).
+(risk class + approval status per capability), `ProviderOverride` (kill switches - enabled,
+degraded, cost/timeout/retry/concurrency caps, and who/why set it),
+`PersistentAgentExecutor`/`PersistentExecution` (start/status/resume/cancel lifecycle for
+longer-lived workers).
 
 ## API
 
@@ -345,6 +411,9 @@ POST   /api/tasks/:id/follow-up          Creates a linked follow-up task (stream
 POST   /api/tasks/:id/feedback           Accept/reject/needs-review on one result
 GET    /api/executors                    Provider list + mode + live-connected count
 GET    /api/executors/health             Health check every provider right now
+GET    /api/executors/:id                One provider + its current kill-switch override
+PATCH  /api/executors/:id                Set kill switches (enable/disable/degrade/caps) - takes effect immediately
+DELETE /api/executors/:id                Reset a provider to its seeded defaults
 GET    /api/executors/:id/performance    Per-capability performance history
 GET    /api/history                      Task history list
 GET    /api/experiments                  Routing experiments + aggregate Routing Advantage
@@ -438,6 +507,13 @@ makes it traceable back to a mock source.
   against the shared demo company pool - not per-scenario bespoke evidence fixtures, and not
   yet the spec's separate named Tavily+OpenAI / Tavily+Gemini paths (that needs the router to
   accept a fixed *set* of allowed providers per step, not just one).
+- No real vendor is wired behind `PersistentAgentExecutor` - see "Persistent agent executors"
+  above for why that's deliberate rather than an oversight. Even once one is, today's
+  synchronous `execute()` bridge (start → poll → return) means a real integration would need to
+  finish within one request; genuine cross-request resume (start now, come back tomorrow and
+  resume) needs the same pause/persist-partial-state work flagged for interactive approval
+  above - the architecture (`startTask`/`getStatus`/`resumeTask`/`cancelTask`) is ready for that,
+  the execution engine isn't wired to use it that way yet.
 
 ## Tech stack
 

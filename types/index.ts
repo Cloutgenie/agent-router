@@ -31,7 +31,11 @@ export type Capability =
   | "calendar-read"
   | "calendar-write"
   | "file-read"
-  | "file-write";
+  | "file-write"
+  | "long-running-task"
+  | "authenticated-browser"
+  | "terminal-execution"
+  | "agent-delegation";
 
 export const ALL_CAPABILITIES: Capability[] = [
   "company-research",
@@ -56,6 +60,10 @@ export const ALL_CAPABILITIES: Capability[] = [
   "calendar-write",
   "file-read",
   "file-write",
+  "long-running-task",
+  "authenticated-browser",
+  "terminal-execution",
+  "agent-delegation",
 ];
 
 export interface CapabilityClassifier {
@@ -69,7 +77,7 @@ export interface CapabilityClassifier {
 
 export type ExecutionMode = "demo" | "live";
 
-export type ProviderProtocol = "mock" | "rest" | "mcp" | "a2a" | "webhook";
+export type ProviderProtocol = "mock" | "rest" | "mcp" | "a2a" | "webhook" | "persistent_agent";
 
 // ---------------------------------------------------------------------------
 // Provider layer - the only thing that actually performs work. Everything
@@ -214,6 +222,32 @@ export interface MCPToolResult {
 export interface MCPExecutor extends AgentProvider {
   listTools(): Promise<MCPToolDescriptor[]>;
   callTool(toolName: string, input: Record<string, unknown>): Promise<MCPToolResult>;
+}
+
+// ---------------------------------------------------------------------------
+// Persistent agent executors - long-running computer/browser/terminal
+// workers (spec #9): a persistent browser session, a computer-use worker, a
+// terminal agent, a future third-party worker. No concrete vendor has a
+// settled programmatic contract wired here - see
+// lib/providers/adapters/persistentAgentExecutor.ts for why the real
+// adapter is an honest, unconnected shell (never fabricate an integration),
+// and lib/providers/mock/persistentAgentExecutor.ts for the Demo Mode
+// stand-in that exercises the full lifecycle below.
+// ---------------------------------------------------------------------------
+
+export type PersistentExecutionStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+
+export interface PersistentExecution {
+  executionId: string;
+  status: PersistentExecutionStatus;
+  startedAt: string;
+}
+
+export interface PersistentAgentExecutor extends AgentProvider {
+  startTask(input: ProviderTask): Promise<PersistentExecution>;
+  getStatus(executionId: string): Promise<PersistentExecution>;
+  resumeTask?(executionId: string): Promise<ProviderResult>;
+  cancelTask?(executionId: string): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -615,7 +649,7 @@ export interface ProviderPerformanceMetrics {
 // Provider health (V4 #3) - checked before routing any live work.
 // ---------------------------------------------------------------------------
 
-export type ProviderHealthState = "healthy" | "degraded" | "unavailable" | "missing_credentials";
+export type ProviderHealthState = "healthy" | "degraded" | "unavailable" | "disabled" | "missing_credentials";
 
 export interface ProviderHealth {
   provider_id: string;
@@ -623,6 +657,34 @@ export interface ProviderHealth {
   state: ProviderHealthState;
   checked_at: string;
   detail?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Provider overrides / kill switches (spec #33-35). Operator-set, take
+// effect immediately with no redeploy - lib/providers/overrideStore.ts.
+// Either set manually from /executors, or written automatically by
+// lib/policy/autoSafety.ts when a provider's own performance history
+// crosses a failure/verification threshold.
+// ---------------------------------------------------------------------------
+
+export interface ProviderOverride {
+  /** Kill switch - false removes the provider from eligibility entirely, in every mode. */
+  enabled: boolean;
+  /** Still eligible, but scored with a heavy penalty and reported as "degraded" health. */
+  degraded: boolean;
+  /** Provider becomes ineligible for any step whose price exceeds this. */
+  maxCostPerTask?: number;
+  /** A call that takes longer than this is treated as a failed attempt. */
+  timeoutMs?: number;
+  /** How many times the SAME provider is retried before the engine falls back to the next candidate. */
+  maxRetries?: number;
+  /** Global concurrency cap across the whole running process, not just one task. */
+  maxConcurrentRuns?: number;
+  /** Cap on how many steps within a single task may route to this provider. */
+  maxRunsPerTask?: number;
+  updatedAt: string;
+  updatedBy: "manual" | "auto";
+  reason?: string;
 }
 
 // ---------------------------------------------------------------------------

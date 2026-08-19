@@ -1,6 +1,8 @@
 import { RuntimeConfig } from "@/lib/config";
 import { recordProviderAttempt } from "@/lib/history/performanceStore";
 import { evaluateApproval } from "@/lib/policy/executionPolicy";
+import { beginRun, endRun, isAtConcurrencyLimit } from "@/lib/providers/concurrencyTracker";
+import { getCachedOverrides } from "@/lib/providers/overrideStore";
 import { getEligibleProviders, getProviderById } from "@/lib/providers/registry";
 import { routeStep } from "@/lib/router/providerRouter";
 import { getAllPerformanceMetrics } from "@/lib/history/performanceStore";
@@ -8,6 +10,7 @@ import {
   AgentProvider,
   ExecutionMode,
   ExecutionStep,
+  ProviderOverride,
   ProviderPerformanceMetrics,
   ProviderResult,
   ProviderTask,
@@ -18,6 +21,49 @@ export interface StepEvent {
   step: ExecutionStep;
   event: "started" | "completed" | "failed" | "fallback" | "blocked";
   detail?: string;
+}
+
+const DEFAULT_PROVIDER_TIMEOUT_MS = Number(process.env.DEFAULT_EXECUTION_TIMEOUT_MS ?? 30000);
+
+/**
+ * Per-task run cap (spec #35's maxRunsPerTask). Only meaningful at routing
+ * time, when deciding which provider a step *should* use - re-applying it
+ * at execution time would incorrectly exclude a step's own just-made
+ * reservation (its count already includes itself).
+ */
+function filterByTaskRunCap(
+  providers: AgentProvider[],
+  overrides: Record<string, ProviderOverride>,
+  taskRunCounts: Map<string, number>
+): AgentProvider[] {
+  return providers.filter((provider) => {
+    const cap = overrides[provider.id]?.maxRunsPerTask;
+    if (cap == null) return true;
+    return (taskRunCounts.get(provider.id) ?? 0) < cap;
+  });
+}
+
+/** Process-wide concurrency cap (spec #35's maxConcurrentRuns) - genuinely dynamic, so it's re-checked at both routing and execution time. */
+function filterByConcurrency(providers: AgentProvider[], overrides: Record<string, ProviderOverride>): AgentProvider[] {
+  return providers.filter((provider) => !isAtConcurrencyLimit(provider.id, overrides[provider.id]?.maxConcurrentRuns));
+}
+
+class ProviderTimeoutError extends Error {}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new ProviderTimeoutError(`Timed out after ${timeoutMs}ms`)), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
 }
 
 /** Minimal async push-queue so concurrent step events can be yielded as they happen, not batched at wave-end. */
@@ -97,16 +143,38 @@ function readyStatus(steps: ExecutionStep[], step: ExecutionStep): boolean {
   });
 }
 
+/** One timed, concurrency-tracked call to a single provider - no fallback logic here, just the mechanics of one attempt. */
+async function attemptOnce(provider: AgentProvider, providerTask: ProviderTask, timeoutMs: number): Promise<ProviderResult> {
+  beginRun(provider.id);
+  try {
+    return await withTimeout(provider.execute(providerTask), timeoutMs);
+  } catch (err) {
+    const timedOut = err instanceof ProviderTimeoutError;
+    return {
+      status: "failed",
+      data: {},
+      evidence: [],
+      confidence: 0,
+      cost: 0,
+      duration_seconds: timedOut ? timeoutMs / 1000 : 0,
+      error: err instanceof Error ? err.message : "Unknown provider error",
+    };
+  } finally {
+    endRun(provider.id);
+  }
+}
+
 async function runStepWithFallback(
   step: ExecutionStep,
   providers: AgentProvider[],
   providerTask: ProviderTask,
+  overrides: Record<string, ProviderOverride>,
   yieldEvent: (event: StepEvent) => void
 ): Promise<void> {
   let attemptOrder = [step.selectedProviderId, ...step.fallbackProviderIds].filter(
     (id): id is string => Boolean(id)
   );
-  // Cap total attempts (primary + up to 2 fallbacks) so a fully-down market fails fast.
+  // Cap total distinct candidates (primary + up to 2 fallbacks) so a fully-down market fails fast.
   attemptOrder = attemptOrder.slice(0, 3);
 
   for (let i = 0; i < attemptOrder.length; i++) {
@@ -118,36 +186,57 @@ async function runStepWithFallback(
       yieldEvent({ step, event: "fallback", detail: `Falling back to ${provider.name}` });
     }
 
-    let result: ProviderResult;
-    try {
-      result = await provider.execute(providerTask);
-    } catch (err) {
-      result = {
-        status: "failed",
-        data: {},
-        evidence: [],
-        confidence: 0,
-        cost: 0,
-        duration_seconds: 0,
-        error: err instanceof Error ? err.message : "Unknown provider error",
-      };
-    }
+    const override = overrides[provider.id];
+    const timeoutMs = override?.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
+    // Same-provider retry (spec #35's maxRetries) before moving to the next distinct candidate - clamped so a misconfigured override can't loop indefinitely.
+    const maxAttempts = Math.min(5, Math.max(1, override?.maxRetries ?? 1));
 
-    await recordProviderAttempt({
-      provider_id: provider.id,
-      capability: step.capability,
-      succeeded: result.status === "completed",
-      confidence: result.confidence,
-      latency_seconds: result.duration_seconds,
-      cost: result.cost,
-    });
+    let result: ProviderResult = {
+      status: "failed",
+      data: {},
+      evidence: [],
+      confidence: 0,
+      cost: 0,
+      duration_seconds: 0,
+      error: "Never attempted.",
+    };
 
-    if (result.status === "completed") {
-      step.result = result;
-      step.selectedProviderId = provider.id;
-      step.status = "completed";
-      yieldEvent({ step, event: "completed" });
-      return;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (isAtConcurrencyLimit(provider.id, override?.maxConcurrentRuns)) {
+        result = {
+          status: "failed",
+          data: {},
+          evidence: [],
+          confidence: 0,
+          cost: 0,
+          duration_seconds: 0,
+          error: `${provider.name} is at its concurrency limit (${override?.maxConcurrentRuns}) right now.`,
+        };
+        break; // no point retrying the same saturated provider - move to the next candidate
+      }
+
+      result = await attemptOnce(provider, providerTask, timeoutMs);
+
+      await recordProviderAttempt({
+        provider_id: provider.id,
+        capability: step.capability,
+        succeeded: result.status === "completed",
+        confidence: result.confidence,
+        latency_seconds: result.duration_seconds,
+        cost: result.cost,
+      });
+
+      if (result.status === "completed") {
+        step.result = result;
+        step.selectedProviderId = provider.id;
+        step.status = "completed";
+        yieldEvent({ step, event: "completed" });
+        return;
+      }
+
+      if (attempt < maxAttempts - 1) {
+        yieldEvent({ step, event: "fallback", detail: `Retrying ${provider.name} (attempt ${attempt + 2} of ${maxAttempts})` });
+      }
     }
   }
 
@@ -207,6 +296,10 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
     metricsByCapability.set(m.capability, list);
   }
 
+  const overrides = getCachedOverrides();
+  /** How many steps in THIS task have already been assigned to each provider - spec #35's per-task run cap. */
+  const taskProviderRunCounts = new Map<string, number>();
+
   let spent = 0;
 
   while (steps.some((s) => s.status === "pending" || s.status === "running")) {
@@ -236,7 +329,8 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
         continue;
       }
 
-      const providers = restrictToSingleProvider(getEligibleProviders(step.capability, mode, config), singleProviderId);
+      const eligible = restrictToSingleProvider(getEligibleProviders(step.capability, mode, config), singleProviderId);
+      const providers = filterByConcurrency(filterByTaskRunCap(eligible, overrides, taskProviderRunCounts), overrides);
       const perfForCapability = metricsByCapability.get(step.capability) ?? [];
       const perfMap = new Map(perfForCapability.map((m) => [m.provider_id, m]));
       const budgetRemaining = constraints.budget != null ? Math.max(0, constraints.budget - spent) : undefined;
@@ -258,6 +352,7 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
       if (routed.selectedProviderId) {
         const provider = providers.find((p) => p.id === routed.selectedProviderId);
         spent += provider?.price_per_task ?? 0;
+        taskProviderRunCounts.set(routed.selectedProviderId, (taskProviderRunCounts.get(routed.selectedProviderId) ?? 0) + 1);
       }
     }
 
@@ -265,7 +360,12 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
 
     const queue = createEventQueue<StepEvent>();
     const runOne = async (step: ExecutionStep, emit: (event: StepEvent) => void) => {
-      const providers = restrictToSingleProvider(getEligibleProviders(step.capability, mode, config), singleProviderId);
+      const eligible = restrictToSingleProvider(getEligibleProviders(step.capability, mode, config), singleProviderId);
+      // Only concurrency is re-checked here, not the per-task run cap - that
+      // cap already decided step.selectedProviderId/fallbackProviderIds at
+      // routing time, using this same step's own reservation. Re-applying it
+      // here would incorrectly exclude a step's own selection.
+      const providers = filterByConcurrency(eligible, overrides);
       if (!step.selectedProviderId || providers.length === 0) {
         step.status = "failed";
         step.result = {
@@ -293,7 +393,7 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
         budgetRemaining: constraints.budget,
       };
 
-      await runStepWithFallback(step, providers, providerTask, emit);
+      await runStepWithFallback(step, providers, providerTask, overrides, emit);
     };
 
     if (constraints.allow_parallel === false) {
