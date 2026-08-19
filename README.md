@@ -714,8 +714,41 @@ and once with a fake customer id but Stripe still unconfigured (reporting attemp
 `isMeteredReportingConfigured()` check and no-ops before ever calling Stripe) - both tasks
 completed normally with correct receipts and zero errors in the server logs.
 
-Not built yet: third-party executor payouts (Stripe Connect) - explicitly a future phase per the
-original spec, not started.
+**Stripe Connect payout readiness** (spec #30-31, #62) - the original spec is explicit here: "do
+not implement payouts yet... do not move money to external executors... do not activate it yet."
+So unlike every batch above, this one makes **zero real Stripe Connect API calls anywhere in this
+codebase** - no `stripe.accounts.*` usage exists at all. It's data-model and settlement-accounting
+readiness only, and because nothing here touches a real external API, it's the first Stripe-
+adjacent batch this session that's been fully live-verified locally without needing real Stripe
+keys.
+
+- **Payout accounts** (`lib/billing/payoutAccounts.ts`, `data/executor-payout-accounts.json`) -
+  one `ExecutorPayoutAccount` per provider id, same JSON-file-store pattern as every other store
+  in this app, keyed like `lib/providers/overrideStore.ts` rather than the single-record shape of
+  `lib/billing/account.ts`. `payoutStatus` (`not_configured`/`pending`/`active`/`restricted`) is
+  always a local, simulated admin action - `stripeConnectedAccountId` is a field to populate once
+  a real Connect onboarding flow exists, stored verbatim and never verified against anything real.
+  Every executor defaults to `not_configured` until explicitly set.
+- **Settlement preview** (`lib/billing/settlement.ts`) - deliberately **not** a new persisted
+  monetary store. `computeTaskSettlement()` is a pure derived view over a task's own already-
+  persisted plan and `TaskEconomics`, the same "compute from what's already tracked" pattern as
+  Execution Alpha/Market Gaps: each completed step's own provider cost becomes that step's
+  hypothetical executor payout (the same number this app already pays Tavily/Apollo/etc. today,
+  reframed as what a marketplace payout would be), and the task's overall `platformCostCents` is
+  apportioned across steps by cost share, since there's no per-step platform-fee breakdown to read
+  directly. `aggregateSettlements()` rolls this up per executor across a set of tasks (e.g. a
+  billing period) for the admin summary view.
+- **`/admin/payouts`** - mirrors `/admin/billing`'s conventions: the same "no access control"
+  warning banner, a payout-account status table across every known provider, a status-setter form
+  (`components/PayoutStatusForm.tsx`, POSTs to `POST /api/admin/payouts`) explicitly labeled as
+  local-only, and a settlement-preview table (`aggregateSettlements` over the current billing
+  period's billed tasks) labeled illustrative - no money moves and no Stripe Connect API is ever
+  called from this page or its route.
+
+Because this batch is architecture-only with no real external calls, it was fully live-verified:
+ran the dev server, set several executors through every `payoutStatus` value via the admin form
+and confirmed each persisted correctly across reloads, and confirmed the settlement preview
+correctly reflected real billed live-task history (including sitting empty in a period with none).
 
 ## Data model
 

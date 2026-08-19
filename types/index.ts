@@ -765,6 +765,42 @@ export interface TaskEconomics {
 }
 
 // ---------------------------------------------------------------------------
+// Stripe Connect readiness (billing spec #30-31, #62) - data models and
+// settlement-ready accounting only. No payout is ever executed and no real
+// Stripe Connect account is ever created anywhere in this codebase - the
+// spec is explicit: "do not implement payouts yet... do not move money to
+// external executors... do not activate it yet." See
+// lib/billing/payoutAccounts.ts and lib/billing/settlement.ts.
+// ---------------------------------------------------------------------------
+
+export type ExecutorPayoutStatus = "not_configured" | "pending" | "active" | "restricted";
+
+export interface ExecutorPayoutAccount {
+  executorId: string;
+  stripeConnectedAccountId?: string;
+  payoutStatus: ExecutorPayoutStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** What one executor would be owed for one step, if third-party payouts were active - illustrative only, never transferred. */
+export interface ExecutorSettlementLine {
+  executorId: string;
+  executorName: string;
+  stepId: string;
+  capability: Capability;
+  executorPayoutCents: number;
+  platformFeeCents: number;
+}
+
+export interface TaskSettlement {
+  taskId: string;
+  totalExecutorPayoutCents: number;
+  totalPlatformFeeCents: number;
+  lines: ExecutorSettlementLine[];
+}
+
+// ---------------------------------------------------------------------------
 // Comparison mode - proves routing beats a single provider (V4 #12, #35).
 // ---------------------------------------------------------------------------
 
