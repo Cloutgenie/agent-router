@@ -1,17 +1,34 @@
-import { AgentProvider, Evidence, MCPToolDescriptor, MCPToolResult, ProviderResult, ProviderTask } from "@/types";
+import { AgentProvider, Capability, Evidence, MCPToolDescriptor, MCPToolResult, ProviderResult, ProviderTask } from "@/types";
 import { jitter, makeEvidence, round2, sleep } from "../shared";
 
 const DEMO_TOOLS: MCPToolDescriptor[] = [
   { serverId: "demo-mcp", toolName: "web.search", description: "Search the open web for a query." },
   { serverId: "demo-mcp", toolName: "web.fetch", description: "Fetch and summarize a single URL." },
+  { serverId: "demo-mcp", toolName: "crm.write_contact", description: "Write a contact record to the CRM." },
+  { serverId: "demo-mcp", toolName: "email.send", description: "Send an email." },
+  { serverId: "demo-mcp", toolName: "calendar.create_event", description: "Create a calendar event." },
+  { serverId: "demo-mcp", toolName: "file.write", description: "Write a file to connected storage." },
 ];
+
+const TOOL_FOR_CAPABILITY: Partial<Record<Capability, string>> = {
+  "crm-write": "crm.write_contact",
+  "email-send": "email.send",
+  "calendar-write": "calendar.create_event",
+  "file-write": "file.write",
+};
 
 /**
  * Demo-mode stand-in for a generic MCP tool server (spec #68 - Demo Mode
  * needs a mock MCP, same as it needs mock search/enrichment/LLM). Only
- * declares `web-research` - never `company-research` - so it can never be
+ * declares `web-research` plus the write-capable capabilities the approval
+ * workflow exists to gate - never `company-research` - so it can never be
  * routed to the flagship discovery step, whose result shape it doesn't
  * produce (see the real MCPExecutor for why that boundary matters).
+ *
+ * The write-capable tool calls here are simulated against fictional data,
+ * clearly labeled "[DEMO SIMULATION]" - this lets Demo Mode show the full
+ * approve -> route -> execute flow end to end (spec #28) without ever
+ * pretending a real email got sent or a real CRM got written to.
  */
 export const MockMCPExecutor: AgentProvider & {
   listTools: () => Promise<MCPToolDescriptor[]>;
@@ -20,7 +37,7 @@ export const MockMCPExecutor: AgentProvider & {
   id: "mcp-mock",
   name: "MCP Tool (Demo)",
   description: "Simulated Model Context Protocol tool server - demonstrates MCP-backed execution with zero credentials.",
-  capabilities: ["web-research"],
+  capabilities: ["web-research", "crm-write", "email-send", "calendar-write", "file-write"],
   protocol: "mock",
   quality_score: 0.82,
   reliability_score: 0.85,
@@ -37,7 +54,7 @@ export const MockMCPExecutor: AgentProvider & {
     return {
       toolName,
       isError: false,
-      text: `Simulated ${toolName} result for ${JSON.stringify(input).slice(0, 120)}`,
+      text: `[DEMO SIMULATION] Simulated ${toolName} call for ${JSON.stringify(input).slice(0, 120)}`,
     };
   },
 
@@ -57,11 +74,12 @@ export const MockMCPExecutor: AgentProvider & {
       };
     }
 
-    const result = await this.callTool("web.search", { query: task.goal });
+    const toolName = TOOL_FOR_CAPABILITY[task.capability] ?? "web.search";
+    const result = await this.callTool(toolName, { query: task.goal });
     const evidence: Evidence[] = [
       makeEvidence({
         type: "provider_output",
-        title: "MCP tool result - web.search",
+        title: `MCP tool result - ${toolName}`,
         source: "MCP Tool (Demo)",
         excerpt: result.text,
         confidence: round2(jitter(this.quality_score, 0.05)),

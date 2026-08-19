@@ -8,6 +8,15 @@ const STATUS_STYLES: Record<StepStatus, string> = {
   running: "border-accent/40 bg-accent-soft text-accent-strong",
   completed: "border-good/30 bg-good-soft text-good",
   failed: "border-bad/30 bg-bad-soft text-bad",
+  awaiting_approval: "border-warn/40 bg-warn-soft text-warn",
+};
+
+const STATUS_LABELS: Record<StepStatus, string> = {
+  pending: "pending",
+  running: "running",
+  completed: "completed",
+  failed: "failed",
+  awaiting_approval: "awaiting approval",
 };
 
 function ScoreBar({ value }: { value: number }) {
@@ -87,7 +96,7 @@ function StepCard({ step }: { step: ExecutionStep }) {
             <span className="font-medium text-foreground">{step.description}</span>
             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLES[step.status]}`}>
               {step.status === "running" && <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse-dot rounded-full bg-accent-strong" />}
-              {step.status}
+              {STATUS_LABELS[step.status]}
             </span>
             {step.usedFallback && (
               <span className="rounded-full border border-warn/30 bg-warn-soft px-2 py-0.5 text-[10px] text-warn">
@@ -100,6 +109,9 @@ function StepCard({ step }: { step: ExecutionStep }) {
             {step.dependencies.length > 0 && <span>after: {step.dependencies.join(", ")}</span>}
             {selected && <span>via {selected.provider_name}</span>}
           </div>
+          {step.status === "awaiting_approval" && step.approval?.reason && (
+            <p className="mt-1 text-[11px] text-warn">{step.approval.reason}</p>
+          )}
         </div>
         <button
           type="button"

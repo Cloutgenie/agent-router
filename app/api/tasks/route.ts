@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { runTaskPipeline } from "@/lib/pipeline";
-import { QualityPreference, RoutingPreference, TaskConstraints } from "@/types";
+import { ALL_CAPABILITIES, Capability, QualityPreference, RoutingPreference, TaskConstraints } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,13 @@ interface TaskRequestBody {
   allow_parallel?: unknown;
   result_count?: unknown;
   compare_strategies?: unknown;
+  approved_actions?: unknown;
+}
+
+/** Only ever accepts known capability names - never trusts arbitrary client-supplied strings into the approval gate. */
+function parseApprovedActions(raw: unknown): Capability[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((item): item is Capability => typeof item === "string" && ALL_CAPABILITIES.includes(item as Capability));
 }
 
 export function parseConstraints(body: TaskRequestBody | null): TaskConstraints {
@@ -35,6 +42,7 @@ export function parseConstraints(body: TaskRequestBody | null): TaskConstraints 
         ? Math.min(50, Math.floor(body.result_count))
         : 15,
     compare_strategies: typeof body?.compare_strategies === "boolean" ? body.compare_strategies : false,
+    approved_actions: parseApprovedActions(body?.approved_actions),
   };
 }
 

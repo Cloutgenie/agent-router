@@ -17,6 +17,7 @@ function formatValue(value: unknown): string {
 export function composeGenericResult(plan: ExecutionPlan): FinalResult {
   const completed = plan.steps.filter((s) => s.status === "completed" && s.result);
   const failed = plan.steps.filter((s) => s.status === "failed");
+  const awaitingApproval = plan.steps.filter((s) => s.status === "awaiting_approval");
 
   const summary =
     completed.length > 0
@@ -33,6 +34,13 @@ export function composeGenericResult(plan: ExecutionPlan): FinalResult {
   if (failed.length > 0) {
     highlights.push(
       `${failed.length} step${failed.length > 1 ? "s" : ""} failed: ${failed
+        .map((s) => s.capability.replace(/-/g, " "))
+        .join(", ")}`
+    );
+  }
+  if (awaitingApproval.length > 0) {
+    highlights.push(
+      `${awaitingApproval.length} step${awaitingApproval.length > 1 ? "s" : ""} blocked pending approval: ${awaitingApproval
         .map((s) => s.capability.replace(/-/g, " "))
         .join(", ")}`
     );

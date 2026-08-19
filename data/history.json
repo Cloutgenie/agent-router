@@ -1,5 +1,590 @@
 [
   {
+    "id": "b033e70e-a88c-48a5-b41a-c06e11a4d5e5",
+    "traceId": "trace-44f77675-68c2-46b7-8405-8e60965b8556",
+    "rootTaskId": "b033e70e-a88c-48a5-b41a-c06e11a4d5e5",
+    "followUpTaskIds": [],
+    "workflow": "generic",
+    "mode": "demo",
+    "raw_task": "Send an email to the decision maker about this opportunity.",
+    "created_at": "2026-08-19T13:37:31.864Z",
+    "completed_at": "2026-08-19T13:37:34.068Z",
+    "quality_preference": "standard",
+    "routing_preference": "balanced",
+    "result_count": 15,
+    "allow_parallel": true,
+    "status": "completed",
+    "inferred_capabilities": [
+      "lead-generation",
+      "contact-enrichment",
+      "email-send"
+    ],
+    "plan": {
+      "goal": "Send an email to the decision maker about this opportunity.",
+      "steps": [
+        {
+          "id": "lead-generation",
+          "capability": "lead-generation",
+          "description": "Identify qualified leads",
+          "dependencies": [],
+          "candidates": [
+            {
+              "provider_id": "contact-miner",
+              "provider_name": "Contact Miner",
+              "capability_fit": 0.92,
+              "quality_score": 0.83,
+              "reliability_score": 0.88,
+              "success_rate": 0.9,
+              "cost_efficiency": 1,
+              "latency_score": 1,
+              "historical_bonus": -0.03,
+              "total_score": 0.83,
+              "within_budget": true,
+              "configured": true,
+              "selected": true,
+              "explored": false
+            },
+            {
+              "provider_id": "signal-hunter",
+              "provider_name": "Signal Hunter",
+              "capability_fit": 0.92,
+              "quality_score": 0.88,
+              "reliability_score": 0.93,
+              "success_rate": 0.95,
+              "cost_efficiency": 0,
+              "latency_score": 1,
+              "historical_bonus": 0,
+              "total_score": 0.79,
+              "within_budget": true,
+              "configured": true,
+              "selected": false,
+              "explored": false
+            }
+          ],
+          "fallbackProviderIds": [
+            "signal-hunter"
+          ],
+          "usedFallback": true,
+          "status": "completed",
+          "approval": {
+            "required": false,
+            "status": "not_required"
+          },
+          "selectedProviderId": "signal-hunter",
+          "result": {
+            "status": "completed",
+            "data": {
+              "hiring_signals_detected": 7,
+              "roles_identified": [
+                "Director of Security Engineering",
+                "Director of Security Engineering",
+                "Chief Trust Officer"
+              ]
+            },
+            "evidence": [
+              {
+                "id": "ev-mt04z3oy-5",
+                "type": "provider_output",
+                "title": "Signal Hunter findings",
+                "source": "Signal Hunter",
+                "sourceQuality": "medium",
+                "retrievedAt": "2026-08-19T13:37:34.066Z",
+                "publishedAt": "2026-08-19T13:37:34.066Z",
+                "confidence": 0.92
+              }
+            ],
+            "confidence": 0.91,
+            "cost": 1.15,
+            "duration_seconds": 4.15
+          }
+        },
+        {
+          "id": "contact-enrichment",
+          "capability": "contact-enrichment",
+          "description": "Enrich decision-maker contact details",
+          "dependencies": [],
+          "candidates": [
+            {
+              "provider_id": "contact-miner",
+              "provider_name": "Contact Miner",
+              "capability_fit": 0.92,
+              "quality_score": 0.83,
+              "reliability_score": 0.88,
+              "success_rate": 0.9,
+              "cost_efficiency": 1,
+              "latency_score": 1,
+              "historical_bonus": 0.01,
+              "total_score": 0.87,
+              "within_budget": true,
+              "configured": true,
+              "selected": true,
+              "explored": false
+            }
+          ],
+          "fallbackProviderIds": [],
+          "usedFallback": false,
+          "status": "completed",
+          "approval": {
+            "required": false,
+            "status": "not_required"
+          },
+          "selectedProviderId": "contact-miner",
+          "result": {
+            "status": "completed",
+            "data": {
+              "contacts_enriched": 13,
+              "emails_found": 9
+            },
+            "evidence": [
+              {
+                "id": "ev-mt04z2v8-4",
+                "type": "provider_output",
+                "title": "Contact Miner findings",
+                "source": "Contact Miner",
+                "sourceQuality": "medium",
+                "retrievedAt": "2026-08-19T13:37:32.996Z",
+                "publishedAt": "2026-08-19T13:37:32.996Z",
+                "confidence": 0.84
+              }
+            ],
+            "confidence": 0.82,
+            "cost": 1.1,
+            "duration_seconds": 3.75
+          }
+        },
+        {
+          "id": "email-send",
+          "capability": "email-send",
+          "description": "Send email on the user's behalf",
+          "dependencies": [],
+          "candidates": [
+            {
+              "provider_id": "mcp-mock",
+              "provider_name": "MCP Tool (Demo)",
+              "capability_fit": 0.68,
+              "quality_score": 0.82,
+              "reliability_score": 0.85,
+              "success_rate": 0.9,
+              "cost_efficiency": 1,
+              "latency_score": 1,
+              "historical_bonus": 0,
+              "total_score": 0.79,
+              "within_budget": true,
+              "configured": true,
+              "selected": true,
+              "explored": false
+            }
+          ],
+          "fallbackProviderIds": [],
+          "usedFallback": false,
+          "status": "completed",
+          "approval": {
+            "required": true,
+            "status": "approved"
+          },
+          "selectedProviderId": "mcp-mock",
+          "result": {
+            "status": "completed",
+            "data": {
+              "toolName": "email.send",
+              "raw": "[DEMO SIMULATION] Simulated email.send call for {\"query\":\"Send an email to the decision maker about this opportunity.\"}"
+            },
+            "evidence": [
+              {
+                "id": "ev-mt04z2nb-3",
+                "type": "provider_output",
+                "title": "MCP tool result - email.send",
+                "source": "MCP Tool (Demo)",
+                "sourceQuality": "medium",
+                "excerpt": "[DEMO SIMULATION] Simulated email.send call for {\"query\":\"Send an email to the decision maker about this opportunity.\"}",
+                "retrievedAt": "2026-08-19T13:37:32.711Z",
+                "publishedAt": "2026-08-19T13:37:32.711Z",
+                "confidence": 0.78,
+                "query": "Send an email to the decision maker about this opportunity."
+              }
+            ],
+            "confidence": 0.87,
+            "cost": 0.5,
+            "duration_seconds": 2.81
+          }
+        }
+      ]
+    },
+    "buyer_results": [],
+    "excluded_results": [],
+    "final_result": {
+      "summary": "Completed 3 of 3 routed research steps.",
+      "highlights": [
+        "lead generation: hiring signals detected = 7",
+        "lead generation: roles identified = Director of Security Engineering, Director of Security Engineering, Chief Trust Officer",
+        "contact enrichment: contacts enriched = 13",
+        "contact enrichment: emails found = 9",
+        "email send: toolName = email.send",
+        "email send: raw = [DEMO SIMULATION] Simulated email.send call for {\"query\":\"Send an email to the decision maker about this opportunity.\"}"
+      ],
+      "outputs": {
+        "lead-generation": {
+          "hiring_signals_detected": 7,
+          "roles_identified": [
+            "Director of Security Engineering",
+            "Director of Security Engineering",
+            "Chief Trust Officer"
+          ]
+        },
+        "contact-enrichment": {
+          "contacts_enriched": 13,
+          "emails_found": 9
+        },
+        "email-send": {
+          "toolName": "email.send",
+          "raw": "[DEMO SIMULATION] Simulated email.send call for {\"query\":\"Send an email to the decision maker about this opportunity.\"}"
+        }
+      }
+    },
+    "evaluation_summary": {
+      "average_confidence": 0.87,
+      "total_cost": 2.75,
+      "total_latency": 4.2,
+      "providers_used": 3,
+      "qualified_count": 0,
+      "excluded_count": 0,
+      "evidence_coverage": 0,
+      "verified_claim_rate": 0
+    },
+    "execution_trace": [
+      {
+        "label": "Task received",
+        "detail": "Send an email to the decision maker about this opportunity.",
+        "timestamp": "2026-08-19T13:37:31.864Z"
+      },
+      {
+        "label": "Planning",
+        "detail": "Mode: Demo",
+        "timestamp": "2026-08-19T13:37:31.864Z"
+      },
+      {
+        "label": "Detected 3 capabilities",
+        "detail": "lead-generation, contact-enrichment, email-send",
+        "timestamp": "2026-08-19T13:37:31.864Z"
+      },
+      {
+        "label": "Created execution plan with 3 steps",
+        "timestamp": "2026-08-19T13:37:31.866Z"
+      },
+      {
+        "label": "Running lead generation",
+        "timestamp": "2026-08-19T13:37:31.868Z"
+      },
+      {
+        "label": "Running contact enrichment",
+        "timestamp": "2026-08-19T13:37:31.869Z"
+      },
+      {
+        "label": "Running email send",
+        "timestamp": "2026-08-19T13:37:31.869Z"
+      },
+      {
+        "label": "Running email send - done",
+        "detail": "via MCP Tool (Demo)",
+        "timestamp": "2026-08-19T13:37:32.720Z"
+      },
+      {
+        "label": "Fallback triggered for lead generation",
+        "detail": "Falling back to Signal Hunter",
+        "timestamp": "2026-08-19T13:37:32.820Z"
+      },
+      {
+        "label": "Running contact enrichment - done",
+        "detail": "via Contact Miner",
+        "timestamp": "2026-08-19T13:37:32.997Z"
+      },
+      {
+        "label": "Running lead generation - done",
+        "detail": "via Contact Miner",
+        "timestamp": "2026-08-19T13:37:34.067Z"
+      },
+      {
+        "label": "Verifying claims",
+        "timestamp": "2026-08-19T13:37:34.067Z"
+      },
+      {
+        "label": "Ranking opportunities",
+        "detail": "0 qualified, 0 excluded",
+        "timestamp": "2026-08-19T13:37:34.068Z"
+      },
+      {
+        "label": "Final result produced",
+        "timestamp": "2026-08-19T13:37:34.068Z"
+      }
+    ]
+  },
+  {
+    "id": "9a2aa965-1d1e-4983-81c8-80892926ca41",
+    "traceId": "trace-20f7efab-cec5-4ba1-8629-9fa0480fcd8a",
+    "rootTaskId": "9a2aa965-1d1e-4983-81c8-80892926ca41",
+    "followUpTaskIds": [],
+    "workflow": "generic",
+    "mode": "demo",
+    "raw_task": "Send an email to the decision maker about this opportunity.",
+    "created_at": "2026-08-19T13:36:36.461Z",
+    "completed_at": "2026-08-19T13:36:37.992Z",
+    "quality_preference": "standard",
+    "routing_preference": "balanced",
+    "result_count": 15,
+    "allow_parallel": true,
+    "status": "completed",
+    "inferred_capabilities": [
+      "lead-generation",
+      "contact-enrichment",
+      "email-send"
+    ],
+    "plan": {
+      "goal": "Send an email to the decision maker about this opportunity.",
+      "steps": [
+        {
+          "id": "lead-generation",
+          "capability": "lead-generation",
+          "description": "Identify qualified leads",
+          "dependencies": [],
+          "candidates": [
+            {
+              "provider_id": "contact-miner",
+              "provider_name": "Contact Miner",
+              "capability_fit": 0.92,
+              "quality_score": 0.83,
+              "reliability_score": 0.88,
+              "success_rate": 0.9,
+              "cost_efficiency": 1,
+              "latency_score": 1,
+              "historical_bonus": -0.05,
+              "total_score": 0.81,
+              "within_budget": true,
+              "configured": true,
+              "selected": true,
+              "explored": false
+            },
+            {
+              "provider_id": "signal-hunter",
+              "provider_name": "Signal Hunter",
+              "capability_fit": 0.92,
+              "quality_score": 0.88,
+              "reliability_score": 0.93,
+              "success_rate": 0.95,
+              "cost_efficiency": 0,
+              "latency_score": 1,
+              "historical_bonus": 0,
+              "total_score": 0.79,
+              "within_budget": true,
+              "configured": true,
+              "selected": false,
+              "explored": false
+            }
+          ],
+          "fallbackProviderIds": [
+            "signal-hunter"
+          ],
+          "usedFallback": false,
+          "status": "completed",
+          "approval": {
+            "required": false,
+            "status": "not_required"
+          },
+          "selectedProviderId": "contact-miner",
+          "result": {
+            "status": "completed",
+            "data": {
+              "contacts_enriched": 13,
+              "emails_found": 10
+            },
+            "evidence": [
+              {
+                "id": "ev-mt04xw1u-1",
+                "type": "provider_output",
+                "title": "Contact Miner findings",
+                "source": "Contact Miner",
+                "sourceQuality": "medium",
+                "retrievedAt": "2026-08-19T13:36:37.506Z",
+                "publishedAt": "2026-08-19T13:36:37.506Z",
+                "confidence": 0.82
+              }
+            ],
+            "confidence": 0.78,
+            "cost": 1.1,
+            "duration_seconds": 3.45
+          }
+        },
+        {
+          "id": "contact-enrichment",
+          "capability": "contact-enrichment",
+          "description": "Enrich decision-maker contact details",
+          "dependencies": [],
+          "candidates": [
+            {
+              "provider_id": "contact-miner",
+              "provider_name": "Contact Miner",
+              "capability_fit": 0.92,
+              "quality_score": 0.83,
+              "reliability_score": 0.88,
+              "success_rate": 0.9,
+              "cost_efficiency": 1,
+              "latency_score": 1,
+              "historical_bonus": 0.01,
+              "total_score": 0.87,
+              "within_budget": true,
+              "configured": true,
+              "selected": true,
+              "explored": false
+            }
+          ],
+          "fallbackProviderIds": [],
+          "usedFallback": false,
+          "status": "completed",
+          "approval": {
+            "required": false,
+            "status": "not_required"
+          },
+          "selectedProviderId": "contact-miner",
+          "result": {
+            "status": "completed",
+            "data": {
+              "contacts_enriched": 11,
+              "emails_found": 10
+            },
+            "evidence": [
+              {
+                "id": "ev-mt04xwea-2",
+                "type": "provider_output",
+                "title": "Contact Miner findings",
+                "source": "Contact Miner",
+                "sourceQuality": "medium",
+                "retrievedAt": "2026-08-19T13:36:37.954Z",
+                "publishedAt": "2026-08-19T13:36:37.954Z",
+                "confidence": 0.8
+              }
+            ],
+            "confidence": 0.82,
+            "cost": 1.1,
+            "duration_seconds": 4.94
+          }
+        },
+        {
+          "id": "email-send",
+          "capability": "email-send",
+          "description": "Send email on the user's behalf",
+          "dependencies": [],
+          "candidates": [],
+          "fallbackProviderIds": [],
+          "usedFallback": false,
+          "status": "awaiting_approval",
+          "approval": {
+            "required": true,
+            "status": "pending",
+            "reason": "This is a external-communication action and was not pre-approved, so it did not run."
+          },
+          "result": {
+            "status": "failed",
+            "data": {},
+            "evidence": [],
+            "confidence": 0,
+            "cost": 0,
+            "duration_seconds": 0,
+            "error": "This is a external-communication action and was not pre-approved, so it did not run."
+          }
+        }
+      ]
+    },
+    "buyer_results": [],
+    "excluded_results": [],
+    "final_result": {
+      "summary": "Completed 2 of 3 routed research steps.",
+      "highlights": [
+        "lead generation: contacts enriched = 13",
+        "lead generation: emails found = 10",
+        "contact enrichment: contacts enriched = 11",
+        "contact enrichment: emails found = 10",
+        "1 step blocked pending approval: email send"
+      ],
+      "outputs": {
+        "lead-generation": {
+          "contacts_enriched": 13,
+          "emails_found": 10
+        },
+        "contact-enrichment": {
+          "contacts_enriched": 11,
+          "emails_found": 10
+        },
+        "email-send": {}
+      }
+    },
+    "evaluation_summary": {
+      "average_confidence": 0.8,
+      "total_cost": 2.2,
+      "total_latency": 4.9,
+      "providers_used": 1,
+      "qualified_count": 0,
+      "excluded_count": 0,
+      "evidence_coverage": 0,
+      "verified_claim_rate": 0
+    },
+    "execution_trace": [
+      {
+        "label": "Task received",
+        "detail": "Send an email to the decision maker about this opportunity.",
+        "timestamp": "2026-08-19T13:36:36.461Z"
+      },
+      {
+        "label": "Planning",
+        "detail": "Mode: Demo",
+        "timestamp": "2026-08-19T13:36:36.461Z"
+      },
+      {
+        "label": "Detected 3 capabilities",
+        "detail": "lead-generation, contact-enrichment, email-send",
+        "timestamp": "2026-08-19T13:36:36.461Z"
+      },
+      {
+        "label": "Created execution plan with 3 steps",
+        "timestamp": "2026-08-19T13:36:36.465Z"
+      },
+      {
+        "label": "Running email send - blocked pending approval",
+        "detail": "This is a external-communication action and was not pre-approved, so it did not run.",
+        "timestamp": "2026-08-19T13:36:36.469Z"
+      },
+      {
+        "label": "Running lead generation",
+        "timestamp": "2026-08-19T13:36:36.469Z"
+      },
+      {
+        "label": "Running contact enrichment",
+        "timestamp": "2026-08-19T13:36:36.470Z"
+      },
+      {
+        "label": "Running lead generation - done",
+        "detail": "via Contact Miner",
+        "timestamp": "2026-08-19T13:36:37.510Z"
+      },
+      {
+        "label": "Running contact enrichment - done",
+        "detail": "via Contact Miner",
+        "timestamp": "2026-08-19T13:36:37.956Z"
+      },
+      {
+        "label": "Verifying claims",
+        "timestamp": "2026-08-19T13:36:37.957Z"
+      },
+      {
+        "label": "Ranking opportunities",
+        "detail": "0 qualified, 0 excluded",
+        "timestamp": "2026-08-19T13:36:37.991Z"
+      },
+      {
+        "label": "Final result produced",
+        "timestamp": "2026-08-19T13:36:37.992Z"
+      }
+    ]
+  },
+  {
     "id": "979a05e9-b666-40fe-a856-01639afdbac8",
     "traceId": "trace-e3ca898b-dac6-4456-977d-263e9162c5c7",
     "rootTaskId": "979a05e9-b666-40fe-a856-01639afdbac8",

@@ -1,5 +1,6 @@
 import { RuntimeConfig } from "@/lib/config";
 import { recordProviderAttempt } from "@/lib/history/performanceStore";
+import { evaluateApproval } from "@/lib/policy/executionPolicy";
 import { getEligibleProviders, getProviderById } from "@/lib/providers/registry";
 import { routeStep } from "@/lib/router/providerRouter";
 import { getAllPerformanceMetrics } from "@/lib/history/performanceStore";
@@ -15,7 +16,7 @@ import {
 
 export interface StepEvent {
   step: ExecutionStep;
-  event: "started" | "completed" | "failed" | "fallback";
+  event: "started" | "completed" | "failed" | "fallback" | "blocked";
   detail?: string;
 }
 
@@ -86,11 +87,13 @@ function buildContext(step: ExecutionStep, steps: ExecutionStep[]): Record<strin
   return { ...context, ...step.extraContext };
 }
 
+const TERMINAL_STEP_STATUSES = ["completed", "failed", "awaiting_approval"];
+
 function readyStatus(steps: ExecutionStep[], step: ExecutionStep): boolean {
   if (step.status !== "pending") return false;
   return step.dependencies.every((depId) => {
     const dep = steps.find((s) => s.id === depId);
-    return dep && (dep.status === "completed" || dep.status === "failed");
+    return dep && TERMINAL_STEP_STATUSES.includes(dep.status);
   });
 }
 
@@ -210,7 +213,29 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
     const ready = steps.filter((s) => readyStatus(steps, s));
     if (ready.length === 0) break;
 
+    const blockedEvents: StepEvent[] = [];
+    const runnable: ExecutionStep[] = [];
+
     for (const step of ready) {
+      // Approval gate (spec #10, #26, #28): a step above READ_ONLY risk is
+      // never routed to a provider - scored, selected, or executed - unless
+      // its capability was explicitly pre-approved for this task.
+      step.approval = evaluateApproval(step.capability, constraints.approved_actions);
+      if (step.approval.status === "pending") {
+        step.status = "awaiting_approval";
+        step.result = {
+          status: "failed",
+          data: {},
+          evidence: [],
+          confidence: 0,
+          cost: 0,
+          duration_seconds: 0,
+          error: step.approval.reason,
+        };
+        blockedEvents.push({ step, event: "blocked", detail: step.approval.reason });
+        continue;
+      }
+
       const providers = restrictToSingleProvider(getEligibleProviders(step.capability, mode, config), singleProviderId);
       const perfForCapability = metricsByCapability.get(step.capability) ?? [];
       const perfMap = new Map(perfForCapability.map((m) => [m.provider_id, m]));
@@ -228,12 +253,15 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
       step.selectedProviderId = routed.selectedProviderId;
       step.fallbackProviderIds = routed.fallbackProviderIds;
       step.status = "running";
+      runnable.push(step);
 
       if (routed.selectedProviderId) {
         const provider = providers.find((p) => p.id === routed.selectedProviderId);
         spent += provider?.price_per_task ?? 0;
       }
     }
+
+    for (const event of blockedEvents) yield event;
 
     const queue = createEventQueue<StepEvent>();
     const runOne = async (step: ExecutionStep, emit: (event: StepEvent) => void) => {
@@ -269,13 +297,13 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
     };
 
     if (constraints.allow_parallel === false) {
-      for (const step of ready) {
+      for (const step of runnable) {
         const events: StepEvent[] = [];
         await runOne(step, (e) => events.push(e));
         for (const event of events) yield event;
       }
     } else {
-      const runAll = Promise.all(ready.map((step) => runOne(step, queue.push))).then(() => queue.finish());
+      const runAll = Promise.all(runnable.map((step) => runOne(step, queue.push))).then(() => queue.finish());
       yield* queue.iterate();
       await runAll;
     }

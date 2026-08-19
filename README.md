@@ -236,6 +236,20 @@ back as they actually complete, not batched at the end of the wave. If the selec
 fails, the engine retries the next-ranked candidate from the router's own fallback ordering
 (up to 2 fallbacks) before marking the step failed - one bad provider doesn't sink the task.
 
+**Execution policy & approval (spec #27-28, `lib/policy/executionPolicy.ts`).** Before a step
+is ever routed to a provider - before scoring, before eligibility, before anything - its
+capability's risk class is checked. Read-only capabilities (all research/enrichment/
+interpretation work, plus every `*-read` capability) proceed as normal. Anything above that
+(`crm-write` / `calendar-write` / `file-write` = low-risk write, `email-send` =
+external-communication) is blocked by default: the step's status becomes `awaiting_approval`,
+it's never scored or executed, and its dependents treat it as terminal (same as a failed step)
+rather than hanging forever. The only way past the gate is `TaskConstraints.approved_actions` -
+an explicit, per-task allowlist of capability names (the "Pre-approve actions" field in
+Execute's advanced options) - there is no default-allow path. `/executors` shows the full
+risk-class table for every capability. `MockMCPExecutor` can actually execute an approved
+write-capable step in Demo Mode, clearly labeled `[DEMO SIMULATION]`, so the whole
+block → approve → route → execute flow is demonstrable with zero credentials.
+
 ### 5. Evaluator (`lib/evaluation/verifier.ts`)
 
 Never trusts a provider's self-reported confidence. For every record, builds one **claim**
@@ -317,7 +331,8 @@ See `types/index.ts` for the complete set - `Agent`/`AgentProvider`, `ProviderTa
 `ProviderResult`, `Evidence`, `Claim`, `VerificationResult`, `ExecutionStep`,
 `ExecutionPlan`, `OpportunityScore`, `BuyerRecord`, `Task`, `StrategyComparison`,
 `RoutingExperiment`, `ProviderPerformanceMetrics`, `ProviderHealth`, `Company` (canonical,
-deduplicated).
+deduplicated), `MCPToolDescriptor`/`MCPToolResult`, `ExecutionPolicy`/`ExecutionApproval`
+(risk class + approval status per capability).
 
 ## API
 
@@ -412,6 +427,12 @@ makes it traceable back to a mock source.
   matched to the right capability. It's been verified against a mocked JSON-RPC server
   (`tests/mcpProvider.test.ts`), not a real MCP server, since none is configured in this
   environment.
+- Approval (`lib/policy/executionPolicy.ts`) is pre-approval only, decided when the task is
+  submitted (`TaskConstraints.approved_actions`) - there's no interactive mid-run "approve this
+  now and resume the same task" flow yet, since the execution engine runs a task to completion
+  in one streamed pass rather than pausing and persisting partial state. A blocked step shows up
+  clearly (`awaiting_approval`, with its reason, in the plan graph and the trace) but the only
+  way to unblock it today is to resubmit the task with that capability pre-approved.
 - `/benchmarks` measures single-provider-baseline-vs-routed (the same `StrategyComparison`
   used everywhere else), applied across 20 scenarios that vary the goal and requested depth
   against the shared demo company pool - not per-scenario bespoke evidence fixtures, and not

@@ -178,7 +178,7 @@ function toStrategySummary(
         .filter((n): n is string => Boolean(n))
     )
   );
-  const failedCount = plan.steps.filter((s) => s.status === "failed").length;
+  const failedCount = plan.steps.filter((s) => s.status === "failed" || s.status === "awaiting_approval").length;
   return {
     strategy,
     providerNames,
@@ -399,6 +399,8 @@ async function* translateStepEvent(
     yield emitTrace(`${friendlyStepLabel(step)} - done`, `via ${step.candidates.find((c) => c.selected)?.provider_name ?? step.selectedProviderId}`);
   } else if (event === "failed") {
     yield emitTrace(`${friendlyStepLabel(step)} - failed`, detail);
+  } else if (event === "blocked") {
+    yield emitTrace(`${friendlyStepLabel(step)} - blocked pending approval`, detail);
   }
   yield { type: "step", data: step };
 }

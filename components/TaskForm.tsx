@@ -25,6 +25,7 @@ export function TaskForm({
   const [resultCount, setResultCount] = useState("15");
   const [allowParallel, setAllowParallel] = useState(true);
   const [compareStrategies, setCompareStrategies] = useState(false);
+  const [approvedActions, setApprovedActions] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,6 +38,10 @@ export function TaskForm({
       allow_parallel: allowParallel,
       result_count: resultCount ? Number(resultCount) : undefined,
       compare_strategies: compareStrategies,
+      approved_actions: approvedActions
+        .split(",")
+        .map((a) => a.trim())
+        .filter(Boolean) as TaskConstraints["approved_actions"],
     });
   }
 
@@ -113,6 +118,16 @@ export function TaskForm({
               Compare routing strategy
             </label>
           </div>
+          <Field label="Pre-approve actions">
+            <input
+              type="text"
+              value={approvedActions}
+              onChange={(e) => setApprovedActions(e.target.value)}
+              placeholder="e.g. email-send, crm-write"
+              disabled={isRunning}
+              className={INPUT_CLASS}
+            />
+          </Field>
         </div>
       )}
     </form>

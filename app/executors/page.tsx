@@ -1,7 +1,9 @@
+import { ExecutionPolicyCard } from "@/components/ExecutionPolicyCard";
 import { ModeBadge } from "@/components/ModeBadge";
 import { ProvidersTable } from "@/components/ProvidersTable";
 import { getRuntimeConfig } from "@/lib/config";
 import { getAllPerformanceMetrics } from "@/lib/history/performanceStore";
+import { allExecutionPolicies } from "@/lib/policy/executionPolicy";
 import { checkAllProviderHealth } from "@/lib/providers/health";
 import { getAllProviders, toProviderSummary } from "@/lib/providers/registry";
 import { ProviderPerformanceMetrics } from "@/types";
@@ -33,9 +35,11 @@ export default async function ProvidersPage() {
         </p>
       </div>
 
-      <div className="card p-4 sm:p-5">
+      <div className="card mb-6 p-4 sm:p-5">
         <ProvidersTable providers={providers} health={health} metricsByProvider={metricsByProvider} />
       </div>
+
+      <ExecutionPolicyCard policies={allExecutionPolicies()} />
     </div>
   );
 }

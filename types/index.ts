@@ -217,6 +217,28 @@ export interface MCPExecutor extends AgentProvider {
 }
 
 // ---------------------------------------------------------------------------
+// Execution policy + approval (spec #27-28). Every capability carries a risk
+// class; anything above READ_ONLY requires explicit approval before the
+// execution engine will even route it to a provider - see
+// lib/policy/executionPolicy.ts and lib/execution/stepEngine.ts.
+// ---------------------------------------------------------------------------
+
+export type RiskClass = "READ_ONLY" | "LOW_RISK_WRITE" | "EXTERNAL_COMMUNICATION" | "HIGH_RISK_WRITE" | "FINANCIAL";
+
+export interface ExecutionPolicy {
+  capability: Capability;
+  riskClass: RiskClass;
+}
+
+export type ApprovalStatus = "not_required" | "pending" | "approved" | "rejected";
+
+export interface ExecutionApproval {
+  required: boolean;
+  status: ApprovalStatus;
+  reason?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Router layer - per-step provider scoring and selection.
 // ---------------------------------------------------------------------------
 
@@ -238,7 +260,7 @@ export interface ProviderCandidateScore {
   explored: boolean;
 }
 
-export type StepStatus = "pending" | "running" | "completed" | "failed";
+export type StepStatus = "pending" | "running" | "completed" | "failed" | "awaiting_approval";
 
 export interface ExecutionStep {
   id: string;
@@ -247,6 +269,8 @@ export interface ExecutionStep {
   /** IDs of steps that must complete before this one can start. */
   dependencies: string[];
   candidates: ProviderCandidateScore[];
+  /** Computed once the step is ready to run - never routed to a provider while status is "pending". */
+  approval?: ExecutionApproval;
   selectedProviderId?: string;
   fallbackProviderIds: string[];
   usedFallback: boolean;
@@ -435,6 +459,8 @@ export interface TaskConstraints {
   routing_preference?: RoutingPreference;
   /** Run both a single-provider and a routed strategy and compare them (V4 #12). */
   compare_strategies?: boolean;
+  /** Capabilities explicitly pre-approved for this task - anything above READ_ONLY risk is otherwise blocked by default (spec #28). */
+  approved_actions?: Capability[];
 }
 
 export interface CostBreakdown {
