@@ -69,7 +69,7 @@ function estimatePlanCost(plan: ExecutionPlan, mode: Task["mode"], config: Runti
 }
 
 /** Cheapest/priciest plausible provider-cost total across the plan - the billing gate's pre-flight estimate range (spec #9), distinct from `estimatePlanCost`'s single median figure. */
-function estimatePlanCostRange(plan: ExecutionPlan, mode: Task["mode"], config: RuntimeConfig): { lowDollars: number; highDollars: number } {
+export function estimatePlanCostRange(plan: ExecutionPlan, mode: Task["mode"], config: RuntimeConfig): { lowDollars: number; highDollars: number } {
   let low = 0;
   let high = 0;
   for (const step of plan.steps) {

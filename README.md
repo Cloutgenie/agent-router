@@ -517,7 +517,7 @@ deliberately doesn't carry a verification estimate (matching the market-core bat
 keep its shape minimal/spec-faithful), and failure-rate lift would need a different data source
 entirely. Left out rather than approximated with something that would look precise but wasn't.
 
-### 12. Billing (`lib/billing/`) - core architecture only, no Stripe yet
+### 12. Billing (`lib/billing/`) - real architecture + UI, no Stripe yet
 
 The economic abstraction: customers pay Task Dropoff for outcomes, not Tavily/Apollo/OpenAI/
 Gemini/Browserbase individually. This batch is the internal architecture that abstraction needs
@@ -580,9 +580,34 @@ blocked before any provider ran).
   - same "never silently downgrade past a limit" principle as the existing risk-class approval
   gate, just applied to money instead of write actions.
 
-Not built in this batch: any Stripe integration, the `/settings/billing` UI, the
-`/api/billing/*`/`/api/webhooks/stripe` routes, entitlements actually gating router eligibility,
-and admin billing tooling - all explicitly separate, later batches.
+**Billing UI** (this batch's own follow-up):
+
+- **`/settings/billing`** - current plan, execution usage (included/used/remaining/overage),
+  billing period, an editable spending-limits form (`components/SpendingLimitsForm.tsx`, PATCHes
+  `/api/billing/spending-limits`), recent ledger activity, and a plan-comparison table. Payment
+  method and invoices are shown as honest "not connected - requires Stripe" placeholders rather
+  than fake UI that looks functional but does nothing - there's genuinely nothing there to manage
+  yet. Upgrade/Change/Cancel buttons are deliberately not built for the same reason (no Checkout
+  or portal exists to send the user to) rather than shipped as dead buttons.
+- **Pre-execution cost preview** (spec #25, `TaskForm.tsx`) - a debounced call to the new
+  `POST /api/tasks/estimate` route (runs the same classify → plan → cost-range steps
+  `runTaskPipeline` does, stopping before any provider executes - side-effect-free, safe to call
+  on every pause in typing) shows "Estimated execution: $X-$Y" and remaining included balance
+  inline, before the user ever clicks Execute. In Demo Mode it shows a plain "free" note instead.
+- **Post-task receipt** (spec #26, `TaskResultView.tsx`'s new `Receipt` section) - customer
+  price, execution time, verified-claim rate, and an expandable cost breakdown (provider cost /
+  verification cost / platform margin / included credit applied), shown whenever `task.economics`
+  is present (live mode only). Verified live end-to-end, including the honest edge case: a real
+  run that produced zero qualified results correctly showed "$0.00 - Not charged - no usable
+  result," not a fabricated full price.
+- **`GET /api/billing/status`** (spec #43) - the normalized `{plan, status, includedExecutionCents,
+  usedExecutionCents, remainingExecutionCents, overageCents}` shape both the settings page and
+  future consumers should read, rather than reconstructing it from raw ledger entries themselves.
+  Also `GET /api/billing/ledger` (recent entries) and `GET/PATCH /api/billing/spending-limits`.
+
+Not built yet: any Stripe integration at all (Checkout, webhooks, customer portal, real payment
+methods/invoices), entitlements actually gating router/provider eligibility, and admin billing
+tooling (`/admin/billing`) - all explicitly separate, later batches.
 
 ## Data model
 

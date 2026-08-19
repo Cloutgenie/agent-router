@@ -23,6 +23,7 @@ import {
   FollowUpAction,
   ReviewState,
   StrategyComparison,
+  TaskEconomics,
   TaskStatus,
   TraceEvent,
   WorkflowType,
@@ -40,10 +41,59 @@ export interface TaskResultViewProps {
   trace: TraceEvent[];
   comparison?: StrategyComparison;
   budgetOutcome?: BudgetOutcome;
+  economics?: TaskEconomics;
   error?: string | null;
   onFollowUp?: (action: FollowUpAction, selectedIds: string[]) => void;
   onReview?: (id: string, state: ReviewState) => void;
   followUpBusy?: boolean;
+}
+
+function centsToDisplay(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+const BILLING_STATUS_LABEL: Record<TaskEconomics["billingStatus"], string> = {
+  billable: "Charged",
+  partially_billable: "Partially charged",
+  not_billable: "Not charged - no usable result",
+  refunded: "Refunded",
+};
+
+function Receipt({ economics, evaluationSummary }: { economics: TaskEconomics; evaluationSummary: EvaluationSummary | null }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <Section title="Receipt">
+      <div className="card p-4 text-[13px]">
+        <div className="flex flex-wrap items-center gap-4 font-mono">
+          <span>Execution price: {centsToDisplay(economics.customerPriceCents)}</span>
+          {evaluationSummary && <span>Execution time: {evaluationSummary.total_latency}s</span>}
+          {evaluationSummary && <span>Verified claims: {Math.round(evaluationSummary.verified_claim_rate * 100)}%</span>}
+          <span className="text-muted-dim">{BILLING_STATUS_LABEL[economics.billingStatus]}</span>
+        </div>
+        {economics.overageAmountCents > 0 && (
+          <p className="mt-2 text-[12px] text-warn">
+            {centsToDisplay(economics.overageAmountCents)} of this exceeded your included execution balance and will
+            appear as overage.
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-3 text-[11px] text-muted-dim underline decoration-dotted hover:text-foreground"
+        >
+          {expanded ? "Hide cost breakdown" : "View cost breakdown"}
+        </button>
+        {expanded && (
+          <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 font-mono text-[12px] text-muted sm:grid-cols-4">
+            <span>Provider cost: {centsToDisplay(economics.providerCostCents)}</span>
+            <span>Verification cost: {centsToDisplay(economics.verificationCostCents)}</span>
+            <span>Platform margin: {centsToDisplay(economics.platformCostCents)}</span>
+            <span>Included credit applied: {centsToDisplay(economics.includedCreditAppliedCents)}</span>
+          </div>
+        )}
+      </div>
+    </Section>
+  );
 }
 
 function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
@@ -70,6 +120,7 @@ export function TaskResultView({
   trace,
   comparison,
   budgetOutcome,
+  economics,
   error,
   onFollowUp,
   onReview,
@@ -139,6 +190,8 @@ export function TaskResultView({
           <PlanGraph steps={plan.steps} />
         </Section>
       )}
+
+      {economics && <Receipt economics={economics} evaluationSummary={evaluationSummary} />}
 
       {budgetOutcome && (
         <Section title="Budget">

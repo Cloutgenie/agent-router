@@ -53,6 +53,7 @@ export default function Home() {
             trace={run.trace}
             comparison={run.comparison}
             budgetOutcome={run.budgetOutcome}
+            economics={run.economics}
             error={run.error}
             onFollowUp={handleFollowUp}
             onReview={handleReview}

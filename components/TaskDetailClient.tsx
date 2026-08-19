@@ -56,6 +56,7 @@ export function TaskDetailClient({ task }: { task: Task }) {
       trace={task.execution_trace}
       comparison={task.comparison}
       budgetOutcome={task.budget_outcome}
+      economics={task.economics}
       error={error}
       onFollowUp={handleFollowUp}
       onReview={handleReview}

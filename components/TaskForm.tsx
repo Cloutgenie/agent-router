@@ -1,10 +1,81 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { QualityPreference, RoutingPreference, TaskConstraints } from "@/types";
 
 const INPUT_CLASS =
   "w-full rounded-lg border border-border bg-surface-raised px-2.5 py-1.5 text-xs text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60";
+
+interface EstimateResponse {
+  mode: "demo" | "live";
+  billed: boolean;
+  note?: string;
+  estimatedCustomerPriceCents?: { lowCents: number; highCents: number };
+  remainingExecutionCents?: number | null;
+}
+
+/**
+ * Pre-execution cost preview (spec #25) - debounced so it fires once
+ * typing pauses, not on every keystroke; never fires for a trivially short
+ * goal, and any fetch failure is swallowed (the estimate is a courtesy,
+ * never a blocker to actually executing).
+ */
+function useCostEstimate(rawTask: string, budget: string, isRunning: boolean) {
+  const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
+
+  useEffect(() => {
+    const eligible = !isRunning && rawTask.trim().length >= 15;
+    const timer = setTimeout(
+      () => {
+        if (!eligible) {
+          setEstimate(null);
+          return;
+        }
+        fetch("/api/tasks/estimate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ raw_task: rawTask, budget: budget ? Number(budget) : undefined }),
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => setEstimate(data))
+          .catch(() => setEstimate(null));
+      },
+      eligible ? 600 : 0
+    );
+    return () => clearTimeout(timer);
+  }, [rawTask, budget, isRunning]);
+
+  return estimate;
+}
+
+function centsToDisplay(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function CostEstimatePreview({ estimate, budget }: { estimate: EstimateResponse | null; budget: string }) {
+  if (!estimate) return null;
+
+  if (!estimate.billed) {
+    return <p className="mt-2 text-[11px] text-muted-dim">{estimate.note ?? "Demo Mode - free."}</p>;
+  }
+
+  const price = estimate.estimatedCustomerPriceCents;
+  if (!price) return null;
+
+  const overBudget = budget && price.highCents > Number(budget) * 100;
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+      <span className={overBudget ? "text-warn" : "text-muted"}>
+        Estimated execution: {centsToDisplay(price.lowCents)}-{centsToDisplay(price.highCents)}
+      </span>
+      {estimate.remainingExecutionCents != null && (
+        <span className="text-muted-dim">Remaining this month: {centsToDisplay(estimate.remainingExecutionCents)}</span>
+      )}
+      {overBudget && <span className="text-warn">May exceed your ${Number(budget).toFixed(2)} budget</span>}
+    </div>
+  );
+}
 
 export function TaskForm({
   rawTask,
@@ -26,6 +97,7 @@ export function TaskForm({
   const [allowParallel, setAllowParallel] = useState(true);
   const [compareStrategies, setCompareStrategies] = useState(false);
   const [approvedActions, setApprovedActions] = useState("");
+  const estimate = useCostEstimate(rawTask, budget, isRunning);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -81,6 +153,8 @@ export function TaskForm({
           )}
         </button>
       </div>
+
+      <CostEstimatePreview estimate={estimate} budget={budget} />
 
       {showAdvanced && (
         <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4 sm:grid-cols-3 lg:grid-cols-6">

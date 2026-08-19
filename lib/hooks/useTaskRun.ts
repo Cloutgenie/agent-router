@@ -15,6 +15,7 @@ import {
   ReviewState,
   StrategyComparison,
   TaskConstraints,
+  TaskEconomics,
   TaskStatus,
   TraceEvent,
   WorkflowType,
@@ -33,6 +34,7 @@ export interface RunState {
   trace: TraceEvent[];
   comparison?: StrategyComparison;
   budgetOutcome?: BudgetOutcome;
+  economics?: TaskEconomics;
   error: string | null;
 }
 
@@ -73,6 +75,7 @@ function applyEvent(prev: RunState, event: PipelineEvent): RunState {
         evaluationSummary: event.data.evaluation_summary,
         comparison: event.data.comparison,
         budgetOutcome: event.data.budget_outcome,
+        economics: event.data.economics,
       };
     case "error":
       return { ...prev, error: event.message };
