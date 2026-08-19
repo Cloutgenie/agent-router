@@ -29,6 +29,8 @@ export interface RuntimeConfig {
   a2aConfigured: boolean;
   restConfigured: boolean;
   browserExecutionConfigured: boolean;
+  /** Real Browserbase session (JS-rendered pages via CDP) vs. the static-fetch fallback. */
+  browserbaseConfigured: boolean;
   maxBrowserPagesPerTask: number;
   /** No concrete vendor is wired yet - see lib/providers/adapters/persistentAgentExecutor.ts. Always false until one is. */
   persistentAgentConfigured: boolean;
@@ -55,6 +57,11 @@ export function getRuntimeConfig(): RuntimeConfig {
     a2aConfigured: liveEnabled && Boolean(process.env.A2A_REGISTRY_URL),
     restConfigured: liveEnabled && Boolean(process.env.REST_PROVIDER_URL),
     browserExecutionConfigured: liveEnabled && process.env.ENABLE_BROWSER_EXECUTION === "true",
+    browserbaseConfigured:
+      liveEnabled &&
+      process.env.ENABLE_BROWSER_EXECUTION === "true" &&
+      Boolean(process.env.BROWSERBASE_API_KEY) &&
+      Boolean(process.env.BROWSERBASE_PROJECT_ID),
     maxBrowserPagesPerTask: Number(process.env.MAX_BROWSER_PAGES_PER_TASK ?? 10),
     persistentAgentConfigured:
       liveEnabled &&

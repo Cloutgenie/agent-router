@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { actualProviderName } from "@/lib/providerLabel";
 import { ExecutionStep, StepStatus } from "@/types";
 
 const STATUS_STYLES: Record<StepStatus, string> = {
@@ -86,7 +87,7 @@ function RoutingBreakdown({ step }: { step: ExecutionStep }) {
 
 function StepCard({ step }: { step: ExecutionStep }) {
   const [open, setOpen] = useState(false);
-  const selected = step.candidates.find((c) => c.selected);
+  const ranVia = actualProviderName(step);
 
   return (
     <div className="card overflow-hidden">
@@ -107,7 +108,7 @@ function StepCard({ step }: { step: ExecutionStep }) {
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-dim">
             <span>{step.capability.replace(/-/g, " ")}</span>
             {step.dependencies.length > 0 && <span>after: {step.dependencies.join(", ")}</span>}
-            {selected && <span>via {selected.provider_name}</span>}
+            {ranVia && <span>via {ranVia}</span>}
           </div>
           {step.status === "awaiting_approval" && step.approval?.reason && (
             <p className="mt-1 text-[11px] text-warn">{step.approval.reason}</p>

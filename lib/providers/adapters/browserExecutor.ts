@@ -1,3 +1,4 @@
+import puppeteer from "puppeteer-core";
 import { RuntimeConfig } from "@/lib/config";
 import { HiringSignalInfo, needsBrowserEscalation } from "@/lib/providers/browserEscalation";
 import { makeEvidence } from "@/lib/providers/shared";
@@ -5,16 +6,29 @@ import { AgentProvider, Evidence, ProviderResult, ProviderTask } from "@/types";
 
 /**
  * Live browser executor (spec #23-24). Read-only by construction: it only
- * ever issues GET requests against a company's own official pages, never
- * submits a form, logs in, or performs any write action.
+ * ever issues GET requests / page navigations against a company's own
+ * official pages, never submits a form, logs in, or performs any write
+ * action.
  *
- * This is a lightweight static-HTML page reader (fetch + text extraction),
- * not full headless-browser JS rendering - most careers/newsroom pages are
- * server-rendered, which covers the "verify an official source" use case
- * this executor exists for. `BROWSERBASE_API_KEY` / `BROWSERBASE_PROJECT_ID`
- * are reserved for a future swap to real Browserbase/Stagehand sessions
- * (which would add JS-rendered page support) and are not read here yet -
- * only `ENABLE_BROWSER_EXECUTION` gates this adapter today.
+ * Two page-fetch strategies, chosen per-call by `browserbaseConfigured`:
+ *   - Real Browserbase session (`fetchOfficialPageViaBrowserbase`): creates a
+ *     remote Chrome session via Browserbase's REST API, drives it over CDP
+ *     with `puppeteer-core`, and reads `document.body.innerText` after JS
+ *     has run - covers SPA/JS-rendered careers pages the static path can't.
+ *     The session is always released (REQUEST_RELEASE) in a `finally`, since
+ *     Browserbase concurrency is capped per-project and unreleased sessions
+ *     burn a slot until their ~5-minute TTL expires. Session *creation* is
+ *     also rate-limited per project (observed: HTTP 429, "burst rate limit
+ *     (5 requests per 1 minute)", on a real project while building this) -
+ *     `execute()` therefore wraps each company's `fetchOfficialPage` call in
+ *     its own try/catch so one company hitting that limit (or any other
+ *     session/navigation failure) degrades to "no evidence for this company"
+ *     rather than discarding evidence already gathered for every other one.
+ *   - Static fetch (`fetchOfficialPageViaStaticFetch`): the original
+ *     lightweight fetch + text-extraction path, used whenever
+ *     `ENABLE_BROWSER_EXECUTION=true` but no Browserbase credentials are
+ *     configured - most careers pages are server-rendered, so this alone
+ *     already covers the common case with zero extra cost or latency.
  */
 
 interface DiscoveredCompany {
@@ -40,7 +54,7 @@ interface FetchedPage {
   text: string;
 }
 
-async function fetchOfficialPage(website: string, timeoutMs: number): Promise<FetchedPage | null> {
+async function fetchOfficialPageViaStaticFetch(website: string, timeoutMs: number): Promise<FetchedPage | null> {
   for (const path of CANDIDATE_PATHS) {
     const url = `https://${website}${path}`;
     const controller = new AbortController();
@@ -64,17 +78,87 @@ async function fetchOfficialPage(website: string, timeoutMs: number): Promise<Fe
   return null;
 }
 
+interface BrowserbaseSession {
+  id: string;
+  connectUrl: string;
+}
+
+async function createBrowserbaseSession(apiKey: string, projectId: string): Promise<BrowserbaseSession> {
+  const res = await fetch("https://api.browserbase.com/v1/sessions", {
+    method: "POST",
+    headers: { "x-bb-api-key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId }),
+  });
+  if (!res.ok) {
+    throw new Error(`Browserbase session create failed: ${res.status} ${await res.text().catch(() => "")}`);
+  }
+  return res.json();
+}
+
+async function releaseBrowserbaseSession(apiKey: string, projectId: string, sessionId: string): Promise<void> {
+  await fetch(`https://api.browserbase.com/v1/sessions/${sessionId}`, {
+    method: "POST",
+    headers: { "x-bb-api-key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId, status: "REQUEST_RELEASE" }),
+  }).catch(() => undefined); // best-effort - the session's own TTL is the backstop
+}
+
+async function fetchOfficialPageViaBrowserbase(
+  website: string,
+  apiKey: string,
+  projectId: string,
+  timeoutMs: number
+): Promise<FetchedPage | null> {
+  const session = await createBrowserbaseSession(apiKey, projectId);
+  try {
+    const browser = await puppeteer.connect({ browserWSEndpoint: session.connectUrl });
+    try {
+      const page = await browser.newPage();
+      for (const path of CANDIDATE_PATHS) {
+        const url = `https://${website}${path}`;
+        try {
+          const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+          if (!response || !response.ok()) continue;
+          const title = await page.title();
+          const text = await page.evaluate(() => document.body.innerText);
+          return { url, title, text: text.replace(/\s+/g, " ").trim().slice(0, 4000) };
+        } catch {
+          continue; // unreachable path or timeout - try the next candidate, never invent a result
+        }
+      }
+      return null;
+    } finally {
+      await browser.disconnect();
+    }
+  } finally {
+    await releaseBrowserbaseSession(apiKey, projectId, session.id);
+  }
+}
+
 const HIRING_PAGE_PATTERN = /\b(open position|open role|we're hiring|open roles|apply now|job opening|current openings)\b/i;
 
 export function createBrowserExecutor(config: RuntimeConfig): AgentProvider {
   const timeoutMs = Number(process.env.DEFAULT_EXECUTION_TIMEOUT_MS ?? 30000);
   const maxPages = config.maxBrowserPagesPerTask;
 
+  async function fetchOfficialPage(website: string): Promise<FetchedPage | null> {
+    if (config.browserbaseConfigured) {
+      return fetchOfficialPageViaBrowserbase(
+        website,
+        process.env.BROWSERBASE_API_KEY as string,
+        process.env.BROWSERBASE_PROJECT_ID as string,
+        timeoutMs
+      );
+    }
+    return fetchOfficialPageViaStaticFetch(website, timeoutMs);
+  }
+
   return {
     id: "browser-executor",
     name: "Browser Verifier (Live)",
-    description:
-      "Read-only: fetches official careers pages directly to confirm or downgrade a weak hiring signal. Never submits forms, logs in, or performs any write action.",
+    description: config.browserbaseConfigured
+      ? "Read-only: drives a real headless Browserbase session to confirm or downgrade a weak hiring signal, including JS-rendered careers pages. Never submits forms, logs in, or performs any write action."
+      : "Read-only: fetches official careers pages directly to confirm or downgrade a weak hiring signal. Never submits forms, logs in, or performs any write action.",
     capabilities: ["official-source-verification"],
     protocol: "rest",
     quality_score: 0.95,
@@ -109,8 +193,17 @@ export function createBrowserExecutor(config: RuntimeConfig): AgentProvider {
         const hiringInfo = hiringByCompany[company.name] ?? {};
         if (!needsBrowserEscalation(hiringInfo)) continue;
 
-        const page = await fetchOfficialPage(company.website, timeoutMs);
         pagesFetched += 1;
+        let page: FetchedPage | null;
+        try {
+          page = await fetchOfficialPage(company.website);
+        } catch {
+          // A single company's session/navigation failure (e.g. Browserbase's
+          // per-project rate limit on session creation - observed at 5/min on
+          // a real project during development) must not discard evidence
+          // already gathered for every other company in this same call.
+          continue;
+        }
         if (!page) continue; // page unreachable - contributes no evidence rather than guessing
 
         const confirmed = HIRING_PAGE_PATTERN.test(page.text);

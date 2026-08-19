@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { actualProviderName } from "@/lib/providerLabel";
 import { RoutingExperiment, Task, TaskHistoryEntry } from "@/types";
 
 const HISTORY_PATH = path.join(process.cwd(), "data", "history.json");
@@ -82,7 +83,7 @@ export async function getTaskLineage(rootTaskId: string): Promise<Task[]> {
 
 function toHistoryEntry(task: Task): TaskHistoryEntry {
   const providers = new Set(
-    task.plan.steps.map((s) => s.candidates.find((c) => c.selected)?.provider_name).filter((n): n is string => Boolean(n))
+    task.plan.steps.map((s) => actualProviderName(s)).filter((n): n is string => Boolean(n))
   );
   return {
     id: task.id,

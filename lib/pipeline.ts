@@ -7,6 +7,7 @@ import { executeStepGraph, StepEvent } from "@/lib/execution/stepEngine";
 import { detectWorkflow, buildExecutionPlan } from "@/lib/planner/taskPlanner";
 import { getHistoryTask, saveTaskToHistory } from "@/lib/history/store";
 import { recordVerificationOutcome } from "@/lib/history/performanceStore";
+import { actualProviderName } from "@/lib/providerLabel";
 import { ensureOverridesLoaded } from "@/lib/providers/overrideStore";
 import { getEligibleProviders } from "@/lib/providers/registry";
 import { applyFollowUp, buildFollowUpPlan, FOLLOW_UP_LABELS } from "@/lib/composer/followUp";
@@ -173,11 +174,7 @@ function toStrategySummary(
 ): StrategyRunSummary {
   const summary = computeEvaluationSummary(plan, allowParallel, results, excluded);
   const providerNames = Array.from(
-    new Set(
-      plan.steps
-        .map((s) => s.candidates.find((c) => c.selected)?.provider_name)
-        .filter((n): n is string => Boolean(n))
-    )
+    new Set(plan.steps.map((s) => actualProviderName(s)).filter((n): n is string => Boolean(n)))
   );
   const failedCount = plan.steps.filter((s) => s.status === "failed" || s.status === "awaiting_approval").length;
   return {
@@ -401,7 +398,7 @@ async function* translateStepEvent(
   } else if (event === "fallback") {
     yield emitTrace(`Fallback triggered for ${step.capability.replace(/-/g, " ")}`, detail);
   } else if (event === "completed") {
-    yield emitTrace(`${friendlyStepLabel(step)} - done`, `via ${step.candidates.find((c) => c.selected)?.provider_name ?? step.selectedProviderId}`);
+    yield emitTrace(`${friendlyStepLabel(step)} - done`, `via ${actualProviderName(step) ?? "unknown provider"}`);
   } else if (event === "failed") {
     yield emitTrace(`${friendlyStepLabel(step)} - failed`, detail);
   } else if (event === "blocked") {

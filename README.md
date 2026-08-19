@@ -163,21 +163,29 @@ signal strength, so the Evaluator has real records to reject, not just ones to r
 
 **Real adapters** (`lib/providers/adapters/`):
 
-- `TavilyProvider` (`tavilyProvider.ts`) and `LLMAnalysisProvider` / `GeminiProvider`
-  (`llmAnalysisProvider.ts` / `geminiProvider.ts`) are real, working integrations. Tavily calls
-  Tavily's search API for company discovery and funding/hiring/AI-signal evidence gathering,
-  deriving company identity from result domains/titles rather than inventing anything. The two
-  LLM adapters call Anthropic's Messages API and Google's Gemini API respectively, sharing one
-  evidence-only schema/prompt/repair contract (`lib/providers/llm/evidenceOnlyAnalysis.ts`):
-  strict JSON matching a fixed schema, one repair-prompt retry on invalid JSON, and reasoning
-  only over evidence upstream steps already retrieved - never gathering evidence itself. With
-  both configured, the router genuinely chooses between two live LLM executors, not a single
-  hardcoded model.
+- `TavilyProvider` (`tavilyProvider.ts`), `ApolloProvider` (`apolloProvider.ts`), and
+  `LLMAnalysisProvider` / `GeminiProvider` / `OpenAIProvider` (`llmAnalysisProvider.ts` /
+  `geminiProvider.ts` / `openaiProvider.ts`) are real, working integrations - the full spec
+  provider stack (Tavily/Apollo/OpenAI/Gemini). Tavily calls Tavily's search API for company
+  discovery and funding/hiring/AI-signal evidence gathering, deriving company identity from
+  result domains/titles rather than inventing anything. Apollo searches for a likely security
+  decision-maker by title (`mixed_people/api_search` - note this is the *current* endpoint;
+  Apollo's docs still list an older `mixed_people/search` path the API itself now rejects with a
+  422 pointing here), and only reveals full contact details via a second, credit-consuming call
+  (`people/match`) when a step's `deepEnrichment` flag is set - `email` stays `undefined`
+  whenever Apollo doesn't return one, never inferred from a name+domain pattern. The three LLM
+  adapters call Anthropic's Messages API, Google's Gemini API, and OpenAI's Chat Completions API
+  respectively, sharing one evidence-only schema/prompt/repair contract
+  (`lib/providers/llm/evidenceOnlyAnalysis.ts`): strict JSON matching a fixed schema (OpenAI
+  additionally uses `response_format: json_object` to ask for it directly), one repair-prompt
+  retry on invalid JSON, and reasoning only over evidence upstream steps already retrieved -
+  never gathering evidence itself. With multiple configured, the router genuinely chooses among
+  live LLM executors, not a single hardcoded model.
 - `BrowserExecutor` (`browserExecutor.ts`) and `MCPProvider` (`mcpProvider.ts`) are also real,
   working integrations - see "Browser execution" and "MCP support" below.
-- `ApolloProvider`, `ClayProvider`, `A2AProvider`, `RestProvider` are structured exactly like a
-  real integration but throw a clear `ProviderNotImplementedError` from `execute()` until
-  someone fills in the TODO - see "Going from mock to real" below.
+- `ClayProvider`, `A2AProvider`, `RestProvider` are structured exactly like a real integration
+  but throw a clear `ProviderNotImplementedError` from `execute()` until someone fills in the
+  TODO - see "Going from mock to real" below.
 - `PersistentAgentExecutor` (`persistentAgentExecutor.ts`) is the same kind of honest shell, for
   a different reason - see "Persistent agent executors" below.
 
@@ -186,13 +194,24 @@ actually present.
 
 #### Browser execution (`lib/providers/adapters/browserExecutor.ts`)
 
-Read-only by construction: it only ever issues GET requests against a company's own official
-pages (`/careers`, `/jobs`), never submits a form, logs in, or performs any write action. It's a
-lightweight static-HTML page reader (fetch + text extraction), not full headless-browser JS
-rendering - most careers pages are server-rendered, which covers the "verify an official
-source" use case this executor exists for. `BROWSERBASE_API_KEY` / `BROWSERBASE_PROJECT_ID` are
-reserved for a future swap to real Browserbase/Stagehand sessions and aren't read yet; only
-`ENABLE_BROWSER_EXECUTION=true` gates this adapter today.
+Read-only by construction: it only ever issues GET requests / page navigations against a
+company's own official pages (`/careers`, `/jobs`), never submits a form, logs in, or performs
+any write action. Two page-fetch strategies, chosen automatically per call:
+
+- **Static fetch** (default, `ENABLE_BROWSER_EXECUTION=true` alone): a lightweight fetch + text
+  extraction - most careers pages are server-rendered, so this alone already covers the common
+  case with zero extra cost or latency.
+- **Real Browserbase session** (when `BROWSERBASE_API_KEY` / `BROWSERBASE_PROJECT_ID` are also
+  set): creates a real remote Chrome session via Browserbase's REST API and drives it over CDP
+  with `puppeteer-core`, reading `document.body.innerText` after JS has run - covers SPA/
+  JS-rendered careers pages the static path can't, verified live against `ycombinator.com` (an
+  SSR-but-representative real target) during development. The session is always released
+  (`REQUEST_RELEASE`) once done, since Browserbase concurrency is capped per project. Session
+  *creation* is also rate-limited per project - a real run hit Browserbase's burst limit (`429`,
+  5 session-creations/minute on the project used for development) partway through a multi-company
+  batch; `execute()` catches each company's fetch independently so one company's rate-limited (or
+  otherwise failed) session degrades to "no evidence for that company" rather than discarding
+  evidence already gathered for every other one in the same call.
 
 **Escalation, not blanket checking.** A dedicated `browser-verify` plan step
 (`lib/providers/browserEscalation.ts::needsBrowserEscalation`, shared by the mock and real
@@ -483,14 +502,16 @@ makes it traceable back to a mock source.
 - `TavilyProvider`'s live discovery derives a company name from the search result's title/
   domain (never a fabricated name) since Tavily returns web pages, not structured company
   entities - it's a best-effort normalization, not perfect entity extraction.
-- `OpenAI` is not wired yet (Anthropic and Gemini are the two live LLM adapters today); Apollo,
-  Clay, A2A, and generic-REST are still unimplemented shells - see "Going from mock to real"
+- `Clay`, `A2A`, and generic-REST are still unimplemented shells - see "Going from mock to real"
   above.
-- `BrowserExecutor` is a static-HTML fetch + text extraction, not full headless-browser JS
-  rendering (no real Browserbase/Stagehand session yet - `BROWSERBASE_API_KEY` /
-  `BROWSERBASE_PROJECT_ID` are reserved but unread). It only checks `/careers` and `/jobs`
-  paths, and only for the hiring signal - funding/AI-signal browser escalation would follow the
-  exact same `needsBrowserEscalation` pattern but isn't wired up yet.
+- `ApolloProvider` only searches for a *security* decision-maker (a fixed title list) - it
+  doesn't yet take a capability-specific title/role hint, so a non-security buyer-discovery
+  variant would need that list generalized.
+- `BrowserExecutor` only checks `/careers`, `/jobs`, and `/careers/open-roles` paths, and only
+  for the hiring signal - funding/AI-signal browser escalation would follow the exact same
+  `needsBrowserEscalation` pattern but isn't wired up yet. Its real Browserbase path also has no
+  retry/backoff around the per-project session-creation rate limit - a rate-limited company is
+  simply skipped for that run, not retried a moment later.
 - `MCPProvider`'s tool selection is a keyword match between capability and tool name/description,
   not a negotiated capability handshake - a server whose tools are named unhelpfully may not get
   matched to the right capability. It's been verified against a mocked JSON-RPC server

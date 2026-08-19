@@ -8,6 +8,7 @@ import { createClayProvider } from "./adapters/clayProvider";
 import { createGeminiAnalysisProvider } from "./adapters/geminiProvider";
 import { createLLMAnalysisProvider } from "./adapters/llmAnalysisProvider";
 import { createMCPProvider } from "./adapters/mcpProvider";
+import { createOpenAIProvider } from "./adapters/openaiProvider";
 import { createPersistentAgentExecutor } from "./adapters/persistentAgentExecutor";
 import { createRestProvider } from "./adapters/restProvider";
 import { createTavilyProvider } from "./adapters/tavilyProvider";
@@ -43,6 +44,7 @@ export function getAllProviders(config: RuntimeConfig = getRuntimeConfig()): Age
     createRestProvider(config),
     createLLMAnalysisProvider(config),
     createGeminiAnalysisProvider(config),
+    createOpenAIProvider(config),
     createBrowserExecutor(config),
     createPersistentAgentExecutor(config),
   ];

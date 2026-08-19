@@ -16,6 +16,7 @@ function makeConfig(overrides: Partial<RuntimeConfig> = {}): RuntimeConfig {
     a2aConfigured: false,
     restConfigured: false,
     browserExecutionConfigured: false,
+    browserbaseConfigured: false,
     maxBrowserPagesPerTask: 10,
     persistentAgentConfigured: false,
     ...overrides,

@@ -5,6 +5,7 @@ import { PlanGraph } from "@/components/PlanGraph";
 import { StatTileRow } from "@/components/StatTiles";
 import { TraceLog } from "@/components/TraceLog";
 import { getHistoryTaskByTraceId } from "@/lib/history/store";
+import { actualProviderName } from "@/lib/providerLabel";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,7 @@ export default async function TraceDetailPage({ params }: PageProps<"/traces/[tr
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-dim">Fallbacks &amp; errors</div>
           {fallbackSteps.map((s) => (
             <p key={`fb-${s.id}`} className="text-[13px] text-warn">
-              {s.description}: fell back to {s.candidates.find((c) => c.selected)?.provider_name ?? s.selectedProviderId}
+              {s.description}: fell back to {actualProviderName(s) ?? "an unknown provider"}
             </p>
           ))}
           {failedSteps.map((s) => (
