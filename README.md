@@ -605,9 +605,52 @@ blocked before any provider ran).
   future consumers should read, rather than reconstructing it from raw ledger entries themselves.
   Also `GET /api/billing/ledger` (recent entries) and `GET/PATCH /api/billing/spending-limits`.
 
-Not built yet: any Stripe integration at all (Checkout, webhooks, customer portal, real payment
-methods/invoices), entitlements actually gating router/provider eligibility, and admin billing
-tooling (`/admin/billing`) - all explicitly separate, later batches.
+**Stripe integration** (`lib/billing/stripe/`) - Checkout, the Billing Portal, webhook handling,
+and subscription-state sync now exist as real code, written against the installed `stripe` SDK's
+actual TypeScript types (not assumed from memory - e.g. subscription period dates live on the
+subscription *item* in this API version, not the subscription itself, which only checking the
+real `.d.ts` files caught). **This has never been run against a real Stripe account** - the user
+chose to build it without providing test-mode keys first, unlike every other real integration in
+this codebase (Tavily, Apollo, OpenAI, Browserbase), which were each confirmed against the live
+API before being called done. Covered instead by unit tests that mock the Stripe SDK boundary
+(`getStripeClient()`) and verify this codebase's own logic - price-id-to-plan mapping, Stripe
+status → `BillingStatus` mapping, idempotent event handling, "unrecognized price leaves the plan
+untouched" - but no test proves Stripe's actual API accepts the shapes this code sends it.
+**Treat this integration as reviewed-but-unverified until it's run with real keys.**
+
+- `POST /api/billing/checkout` - creates/reuses a Stripe customer (spec #12, never duplicates one
+  for the same account), creates a subscription-mode Checkout Session for `starter`/`pro`/
+  `business` (`free` and `enterprise` never go through Checkout), returns its URL for the client
+  to redirect to. `POST /api/billing/portal` - a Billing Portal session for payment
+  method/invoice/subscription management, all inside Stripe's own UI. Both return a clear 503
+  when Stripe isn't configured, verified live (this app currently has no Stripe keys set).
+- `POST /api/webhooks/stripe` - mandatory signature verification (`stripe.webhooks.constructEvent`
+  over the raw request body, not the parsed JSON, since the signature covers exact bytes),
+  idempotent by event id (`lib/billing/stripe/eventLog.ts`, same JSON-file-plus-write-queue
+  pattern as every other store in this app). Handles a deliberately narrow event subset - spec's
+  own "only implement events genuinely needed" instruction:
+  `checkout.session.completed`/`customer.subscription.created|updated|deleted` do the real plan/
+  status/period sync (Stripe is the source of truth - spec #14); `invoice.paid` triggers included-
+  credit provisioning (reusing Phase 13's `ensurePeriodCreditProvisioned`, exactly the
+  invoice-id-instead-of-period-start swap that was anticipated when it was built);
+  `invoice.payment_failed` marks the account `past_due`. `invoice.created`/`invoice.finalized`/
+  `payment_intent.*` are acknowledged (200) but not acted on - nothing in this app reads what
+  they'd add beyond what the handled events already provide.
+- The billing gate (`lib/billing/spendingCheck.ts`) now also blocks live execution outright for
+  `canceled`/`unpaid`/`inactive` accounts (spec #36, #44's "billing account active?" step) -
+  `past_due` is deliberately NOT blocked by default, since spec #37's configurable grace period
+  isn't built yet and the default favors uninterrupted service over guessing at a grace window.
+- `/settings/billing` gained real "Upgrade plan"/"Manage billing" buttons
+  (`components/BillingActionButtons.tsx`) that POST to the routes above and redirect to the
+  returned Stripe URL - shown only when `isStripeConfigured()`, falling back to the same honest
+  "not connected" text as before otherwise. `/billing/success`/`/billing/canceled` are the
+  Checkout redirect targets - neither trusts the redirect itself as proof of payment (spec #11);
+  real state only ever comes from webhooks.
+
+Not built yet: entitlements actually gating router/provider eligibility, admin billing tooling
+(`/admin/billing`), metered overage usage reporting to Stripe (`STRIPE_EXECUTION_USAGE_PRICE_ID`
+is reserved but unread), and third-party executor payouts (Stripe Connect) - explicitly a future
+phase per the original spec, not started.
 
 ## Data model
 

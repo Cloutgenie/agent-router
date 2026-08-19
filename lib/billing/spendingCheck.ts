@@ -1,6 +1,6 @@
 import { getChargesInWindow } from "./ledger";
 import { centsToDollars, dollarsToCents, ExecutionPriceRange } from "./pricing";
-import { BillingAccount } from "@/types";
+import { BillingAccount, BillingStatus } from "@/types";
 
 export interface SpendCheckResult {
   allowed: boolean;
@@ -12,11 +12,20 @@ function startOfUtcDay(now: Date): string {
 }
 
 /**
- * The budget/spending-limits stage of the billing gate (spec #9-10, #44) -
- * called once per task, in live mode only, before any provider is asked to
- * do real (billable) work. Never silently downgrades or continues past a
- * violated limit - refuses the task outright with a plain-language reason,
- * same as the existing execution-policy approval gate does for risk class.
+ * Statuses that block new live execution outright. `past_due` is
+ * deliberately NOT included - spec #37's configurable grace period isn't
+ * built yet, so the default favors uninterrupted service (allow access
+ * during past_due) rather than guessing at a grace window. `trialing` and
+ * `active` are always allowed.
+ */
+const BLOCKED_STATUSES: BillingStatus[] = ["canceled", "unpaid", "inactive"];
+
+/**
+ * The billing gate (spec #9-10, #36, #44) - called once per task, in live
+ * mode only, before any provider is asked to do real (billable) work.
+ * Never silently downgrades or continues past a violated limit - refuses
+ * the task outright with a plain-language reason, same as the existing
+ * execution-policy approval gate does for risk class.
  */
 export async function checkSpendBeforeExecution(
   account: BillingAccount,
@@ -24,6 +33,13 @@ export async function checkSpendBeforeExecution(
   taskBudgetDollars: number | undefined,
   now: Date = new Date()
 ): Promise<SpendCheckResult> {
+  if (BLOCKED_STATUSES.includes(account.status)) {
+    return {
+      allowed: false,
+      reason: `Execution blocked: billing account status is "${account.status}". Update your payment information to continue.`,
+    };
+  }
+
   if (taskBudgetDollars != null) {
     const budgetCents = dollarsToCents(taskBudgetDollars);
     if (estimate.highCents > budgetCents) {

@@ -1,3 +1,4 @@
+import { BillingActionButtons } from "@/components/BillingActionButtons";
 import { ModeBadge } from "@/components/ModeBadge";
 import { SpendingLimitsForm } from "@/components/SpendingLimitsForm";
 import { StatTileRow } from "@/components/StatTiles";
@@ -5,6 +6,7 @@ import { getBillingAccount } from "@/lib/billing/account";
 import { getLedgerForUser } from "@/lib/billing/ledger";
 import { planDefinition, PLAN_DEFINITIONS } from "@/lib/billing/plans";
 import { getBillingStatusSummary } from "@/lib/billing/status";
+import { isStripeConfigured } from "@/lib/billing/stripe/client";
 import { BillingPlan } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -59,9 +61,14 @@ export default async function BillingPage() {
             Billing period: {formatDate(status.currentPeriodStart)} - {formatDate(status.currentPeriodEnd)}
           </p>
         </div>
-        <p className="max-w-xs text-right text-[11px] text-muted-dim">
-          Plan changes and payment management will be available once Stripe billing is connected - not yet built.
-        </p>
+        {isStripeConfigured() ? (
+          <BillingActionButtons plan={account.plan} hasStripeCustomer={Boolean(account.stripeCustomerId)} />
+        ) : (
+          <p className="max-w-xs text-right text-[11px] text-muted-dim">
+            Plan changes and payment management require Stripe to be configured (STRIPE_SECRET_KEY) - not set in this
+            environment.
+          </p>
+        )}
       </div>
 
       <div className="mb-6">
@@ -83,13 +90,17 @@ export default async function BillingPage() {
       <div className="mb-6 grid gap-4 sm:grid-cols-2">
         <div className="card p-4 sm:p-5">
           <div className="mb-1 text-sm font-semibold text-foreground">Payment method</div>
-          <p className="text-xs text-muted-dim">Not connected - requires Stripe integration (not yet built).</p>
+          <p className="text-xs text-muted-dim">
+            {isStripeConfigured()
+              ? "Managed entirely in the Stripe billing portal - use \"Manage billing\" above."
+              : "Not connected - requires Stripe to be configured (STRIPE_SECRET_KEY)."}
+          </p>
         </div>
         <div className="card p-4 sm:p-5">
           <div className="mb-1 text-sm font-semibold text-foreground">Invoices</div>
           <p className="text-xs text-muted-dim">
-            Formal invoices will be issued through Stripe once connected. Recent execution charges are listed below
-            in the meantime.
+            Formal invoices are issued through Stripe once connected - use &quot;Manage billing&quot; above, or see
+            recent execution charges below in the meantime.
           </p>
         </div>
       </div>

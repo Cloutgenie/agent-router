@@ -24,6 +24,28 @@ function makeAccount(overrides: Partial<BillingAccount> = {}): BillingAccount {
 }
 
 describe("checkSpendBeforeExecution", () => {
+  it("blocks execution for a canceled account, before any budget check", async () => {
+    const account = makeAccount({ status: "canceled" });
+    const result = await checkSpendBeforeExecution(account, { lowCents: 1, highCents: 1 }, undefined);
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toMatch(/canceled/);
+  });
+
+  it("blocks an unpaid or inactive account the same way", async () => {
+    expect((await checkSpendBeforeExecution(makeAccount({ status: "unpaid" }), { lowCents: 1, highCents: 1 }, undefined)).allowed).toBe(false);
+    expect((await checkSpendBeforeExecution(makeAccount({ status: "inactive" }), { lowCents: 1, highCents: 1 }, undefined)).allowed).toBe(false);
+  });
+
+  it("does NOT block a past_due account - default favors uninterrupted service absent a configured grace policy", async () => {
+    const result = await checkSpendBeforeExecution(makeAccount({ status: "past_due" }), { lowCents: 1, highCents: 1 }, undefined);
+    expect(result.allowed).toBe(true);
+  });
+
+  it("allows a trialing account", async () => {
+    const result = await checkSpendBeforeExecution(makeAccount({ status: "trialing" }), { lowCents: 1, highCents: 1 }, undefined);
+    expect(result.allowed).toBe(true);
+  });
+
   it("allows execution when nothing is configured", async () => {
     const result = await checkSpendBeforeExecution(makeAccount(), { lowCents: 100, highCents: 200 }, undefined);
     expect(result.allowed).toBe(true);
