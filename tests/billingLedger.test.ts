@@ -60,4 +60,21 @@ describe("billing ledger", () => {
     const total = await getChargesInWindow("u1", "2000-01-01T00:00:00.000Z", "2999-01-01T00:00:00.000Z");
     expect(total).toBe(300);
   });
+
+  it("appendManualLedgerEntry always writes a fresh entry, never deduping like appendLedgerEntry does", async () => {
+    const { appendManualLedgerEntry, getLedgerForUser } = await import("@/lib/billing/ledger");
+    await appendManualLedgerEntry({ userId: "u1", type: "credit_adjustment", amountCents: 500 });
+    await appendManualLedgerEntry({ userId: "u1", type: "credit_adjustment", amountCents: 500 });
+    const entries = await getLedgerForUser("u1");
+    expect(entries).toHaveLength(2); // two distinct admin actions, not deduped
+  });
+
+  it("getAdjustmentsInWindow sums signed credit_adjustment entries, distinct from charges", async () => {
+    const { appendManualLedgerEntry, appendLedgerEntry, getAdjustmentsInWindow } = await import("@/lib/billing/ledger");
+    await appendManualLedgerEntry({ userId: "u1", type: "credit_adjustment", amountCents: 1000 }); // grant
+    await appendManualLedgerEntry({ userId: "u1", type: "credit_adjustment", amountCents: -300 }); // removal
+    await appendLedgerEntry({ userId: "u1", taskId: "t1", type: "execution_charge", amountCents: -500 }); // not an adjustment
+    const total = await getAdjustmentsInWindow("u1", "2000-01-01T00:00:00.000Z", "2999-01-01T00:00:00.000Z");
+    expect(total).toBe(700);
+  });
 });

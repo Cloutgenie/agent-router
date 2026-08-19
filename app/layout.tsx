@@ -67,6 +67,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <Link href="/settings/billing" className="shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-muted transition hover:bg-surface-raised hover:text-foreground sm:px-3">
                 Billing
               </Link>
+              <Link href="/admin/billing" className="shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-muted transition hover:bg-surface-raised hover:text-foreground sm:px-3">
+                Admin
+              </Link>
             </nav>
           </div>
         </header>

@@ -647,10 +647,30 @@ untouched" - but no test proves Stripe's actual API accepts the shapes this code
   Checkout redirect targets - neither trusts the redirect itself as proof of payment (spec #11);
   real state only ever comes from webhooks.
 
-Not built yet: entitlements actually gating router/provider eligibility, admin billing tooling
-(`/admin/billing`), metered overage usage reporting to Stripe (`STRIPE_EXECUTION_USAGE_PRICE_ID`
-is reserved but unread), and third-party executor payouts (Stripe Connect) - explicitly a future
-phase per the original spec, not started.
+**Admin billing tooling** (`/admin/billing`, `lib/billing/adminSummary.ts`,
+`lib/billing/adminActions.ts`) - an operator view of the (single) billing account: plan, status,
+execution usage, real revenue/cost/margin for the current billing period (summed straight from
+each billed task's already-computed `Task.economics`, not re-estimated), and a manual credit
+grant/removal form that always requires a reason (enforced both client- and server-side) since
+every adjustment is written into the ledger itself as the audit trail. The page carries an
+explicit warning that it has **no access control** - this app has no auth system, so
+`/admin/billing` is exactly as reachable as any customer-facing page; that's stated plainly
+rather than implying a protection that doesn't exist. `GET /api/admin/billing/customers` always
+returns exactly one entry (shaped as an array anyway, matching the spec's naming, so a real
+multi-tenant version's route shape wouldn't need to change); `POST /api/admin/billing/credits`
+applies the adjustment.
+
+Live-testing this surfaced and fixed a real gap: a manual credit grant was writing correctly to
+the ledger but `getBillingStatusSummary()`'s "remaining balance" calculation only ever read the
+plan's static included-execution figure, never the ledger's actual `credit_adjustment` entries -
+so an admin grant had zero visible effect on `/settings/billing`. Fixed by adding
+`getAdjustmentsInWindow()` and folding period-scoped adjustments into an "effective included"
+figure both the customer and admin views now read; confirmed live (a $10 grant correctly moved
+included/remaining from $40.00 to $50.00 on both pages, not just in the ledger).
+
+Not built yet: entitlements actually gating router/provider eligibility, metered overage usage
+reporting to Stripe (`STRIPE_EXECUTION_USAGE_PRICE_ID` is reserved but unread), and third-party
+executor payouts (Stripe Connect) - explicitly a future phase per the original spec, not started.
 
 ## Data model
 

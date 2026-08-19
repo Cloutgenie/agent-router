@@ -20,6 +20,7 @@ function makeAccount(overrides: Partial<BillingAccount> = {}): BillingAccount {
 
 let account: BillingAccount;
 let chargedThisPeriod: number;
+let adjustmentsThisPeriod: number;
 
 vi.mock("@/lib/billing/account", () => ({
   getBillingAccount: vi.fn(async () => account),
@@ -27,12 +28,14 @@ vi.mock("@/lib/billing/account", () => ({
 
 vi.mock("@/lib/billing/ledger", () => ({
   getChargesInWindow: vi.fn(async () => chargedThisPeriod),
+  getAdjustmentsInWindow: vi.fn(async () => adjustmentsThisPeriod),
 }));
 
 describe("getBillingStatusSummary", () => {
   beforeEach(() => {
     account = makeAccount();
     chargedThisPeriod = 0;
+    adjustmentsThisPeriod = 0;
   });
 
   it("reports full remaining balance and zero overage before any usage", async () => {
@@ -62,5 +65,21 @@ describe("getBillingStatusSummary", () => {
     expect(summary.remainingExecutionCents).toBeNull();
     expect(summary.overageCents).toBe(0);
     expect(summary.usedExecutionCents).toBe(100000);
+  });
+
+  it("reflects a manual admin credit grant as additional remaining balance, on top of the plan's base allowance", async () => {
+    adjustmentsThisPeriod = 1000; // e.g. a $10 goodwill grant
+    const { getBillingStatusSummary } = await import("@/lib/billing/status");
+    const summary = await getBillingStatusSummary();
+    expect(summary.includedExecutionCents).toBe(5000); // 4000 plan + 1000 grant
+    expect(summary.remainingExecutionCents).toBe(5000);
+  });
+
+  it("reflects a manual admin credit removal as less remaining balance, never below zero", async () => {
+    adjustmentsThisPeriod = -4500; // removed more than the plan's whole allowance
+    const { getBillingStatusSummary } = await import("@/lib/billing/status");
+    const summary = await getBillingStatusSummary();
+    expect(summary.includedExecutionCents).toBe(0);
+    expect(summary.remainingExecutionCents).toBe(0);
   });
 });

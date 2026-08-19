@@ -71,6 +71,17 @@ export async function appendLedgerEntry(input: AppendInput & { idempotencyKey?: 
   return append(input);
 }
 
+/**
+ * For manual admin actions (spec #35: grant/remove credit) - always writes
+ * a fresh entry, unlike `appendLedgerEntry`. There is no natural
+ * idempotency key for a deliberate, one-off admin action the way there is
+ * for a task's own billing finalization; each call is a distinct decision,
+ * not a retry to dedupe.
+ */
+export async function appendManualLedgerEntry(input: AppendInput): Promise<ExecutionLedgerEntry> {
+  return append(input);
+}
+
 export async function getLedgerForUser(userId: string): Promise<ExecutionLedgerEntry[]> {
   const all = await readAll();
   return all.filter((e) => e.userId === userId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -88,4 +99,12 @@ export async function getChargesInWindow(userId: string, startIso: string, endIs
   return entries
     .filter((e) => e.type === "execution_charge" && e.createdAt >= startIso && e.createdAt <= endIso)
     .reduce((sum, e) => sum + Math.abs(e.amountCents), 0);
+}
+
+/** Signed sum of manual credit_adjustment entries (spec #35's grant/remove) within an inclusive ISO date window - a grant/removal within the current period changes the customer's effective included balance, not just the raw ledger total. */
+export async function getAdjustmentsInWindow(userId: string, startIso: string, endIso: string): Promise<number> {
+  const entries = await getLedgerForUser(userId);
+  return entries
+    .filter((e) => e.type === "credit_adjustment" && e.createdAt >= startIso && e.createdAt <= endIso)
+    .reduce((sum, e) => sum + e.amountCents, 0);
 }
