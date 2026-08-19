@@ -2,57 +2,151 @@
   "research-agent::company-research": {
     "provider_id": "research-agent",
     "capability": "company-research",
-    "tasks_attempted": 42,
-    "success_count": 40,
-    "confidence_sum": 33.78,
-    "latency_sum": 147.47999999999996,
-    "cost_sum": 36.71999999999997,
-    "verification_pass_count": 144,
-    "verification_total": 144,
+    "tasks_attempted": 43,
+    "success_count": 41,
+    "confidence_sum": 34.620000000000005,
+    "latency_sum": 150.92999999999995,
+    "cost_sum": 37.61999999999997,
+    "verification_pass_count": 147,
+    "verification_total": 147,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T20:11:47.491Z",
+        "passed": true
+      }
+    ],
+    "recent_verifications": [
+      {
+        "timestamp": "2026-08-19T20:11:50.735Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.739Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.742Z",
+        "passed": true
+      }
+    ]
   },
   "contact-miner::contact-enrichment": {
     "provider_id": "contact-miner",
     "capability": "contact-enrichment",
-    "tasks_attempted": 27,
-    "success_count": 24,
-    "confidence_sum": 18.830000000000005,
-    "latency_sum": 106.42999999999998,
-    "cost_sum": 27.720000000000013,
+    "tasks_attempted": 28,
+    "success_count": 25,
+    "confidence_sum": 19.660000000000004,
+    "latency_sum": 110.36999999999998,
+    "cost_sum": 28.820000000000014,
     "verification_pass_count": 0,
-    "verification_total": 131,
+    "verification_total": 134,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T20:11:48.685Z",
+        "passed": true
+      }
+    ],
+    "recent_verifications": [
+      {
+        "timestamp": "2026-08-19T20:11:50.738Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.742Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.745Z",
+        "passed": false
+      }
+    ]
   },
   "research-agent::ai-adoption-signal": {
     "provider_id": "research-agent",
     "capability": "ai-adoption-signal",
-    "tasks_attempted": 33,
-    "success_count": 33,
-    "confidence_sum": 27.96,
-    "latency_sum": 116.62000000000005,
-    "cost_sum": 29.69999999999998,
+    "tasks_attempted": 34,
+    "success_count": 34,
+    "confidence_sum": 28.79,
+    "latency_sum": 120.37000000000005,
+    "cost_sum": 30.59999999999998,
     "verification_pass_count": 0,
-    "verification_total": 135,
+    "verification_total": 138,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T20:11:48.629Z",
+        "passed": true
+      }
+    ],
+    "recent_verifications": [
+      {
+        "timestamp": "2026-08-19T20:11:50.738Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.741Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.745Z",
+        "passed": false
+      }
+    ]
   },
   "signal-hunter::hiring-signals": {
     "provider_id": "signal-hunter",
     "capability": "hiring-signals",
-    "tasks_attempted": 27,
-    "success_count": 27,
-    "confidence_sum": 23.50999999999999,
-    "latency_sum": 108.97999999999998,
-    "cost_sum": 31.049999999999983,
-    "verification_pass_count": 272,
-    "verification_total": 290,
+    "tasks_attempted": 29,
+    "success_count": 28,
+    "confidence_sum": 24.43999999999999,
+    "latency_sum": 118.48999999999998,
+    "cost_sum": 32.65999999999998,
+    "verification_pass_count": 278,
+    "verification_total": 296,
     "accepted_count": 0,
     "rejected_count": 0,
     "recent_attempts": [
       {
         "timestamp": "2026-08-19T19:37:44.252Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:10:05.808Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:11:48.909Z",
+        "passed": true
+      }
+    ],
+    "recent_verifications": [
+      {
+        "timestamp": "2026-08-19T20:11:50.736Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.737Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.740Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.740Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.744Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.744Z",
         "passed": true
       }
     ]
@@ -60,18 +154,40 @@
   "funding-intelligence::funding-research": {
     "provider_id": "funding-intelligence",
     "capability": "funding-research",
-    "tasks_attempted": 25,
-    "success_count": 25,
-    "confidence_sum": 22.940000000000005,
-    "latency_sum": 112.68000000000002,
-    "cost_sum": 37.5,
-    "verification_pass_count": 119,
-    "verification_total": 138,
+    "tasks_attempted": 27,
+    "success_count": 27,
+    "confidence_sum": 24.720000000000002,
+    "latency_sum": 120.93000000000002,
+    "cost_sum": 40.5,
+    "verification_pass_count": 122,
+    "verification_total": 141,
     "accepted_count": 0,
     "rejected_count": 0,
     "recent_attempts": [
       {
         "timestamp": "2026-08-19T19:37:44.801Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:10:05.697Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:11:48.643Z",
+        "passed": true
+      }
+    ],
+    "recent_verifications": [
+      {
+        "timestamp": "2026-08-19T20:11:50.735Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.739Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.743Z",
         "passed": true
       }
     ]
@@ -79,11 +195,11 @@
   "verification-agent::data-validation": {
     "provider_id": "verification-agent",
     "capability": "data-validation",
-    "tasks_attempted": 30,
-    "success_count": 29,
-    "confidence_sum": 26.88,
-    "latency_sum": 75.82000000000001,
-    "cost_sum": 20.579999999999988,
+    "tasks_attempted": 32,
+    "success_count": 31,
+    "confidence_sum": 28.75,
+    "latency_sum": 80.61000000000001,
+    "cost_sum": 21.979999999999986,
     "verification_pass_count": 0,
     "verification_total": 0,
     "accepted_count": 0,
@@ -91,6 +207,14 @@
     "recent_attempts": [
       {
         "timestamp": "2026-08-19T19:38:09.132Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:10:27.650Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:11:50.691Z",
         "passed": true
       }
     ]
@@ -163,15 +287,21 @@
   "browser-verifier::official-source-verification": {
     "provider_id": "browser-verifier",
     "capability": "official-source-verification",
-    "tasks_attempted": 9,
-    "success_count": 9,
-    "confidence_sum": 5.68,
-    "latency_sum": 28.06,
-    "cost_sum": 4.75,
+    "tasks_attempted": 10,
+    "success_count": 10,
+    "confidence_sum": 6.24,
+    "latency_sum": 32.01,
+    "cost_sum": 5.02,
     "verification_pass_count": 0,
     "verification_total": 0,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T20:11:50.104Z",
+        "passed": true
+      }
+    ]
   },
   "mcp-mock::email-send": {
     "provider_id": "mcp-mock",
@@ -189,18 +319,22 @@
   "tavily::company-research": {
     "provider_id": "tavily",
     "capability": "company-research",
-    "tasks_attempted": 11,
-    "success_count": 11,
-    "confidence_sum": 7.903718253968255,
-    "latency_sum": 21.299999999999997,
-    "cost_sum": 3.8500000000000005,
+    "tasks_attempted": 12,
+    "success_count": 12,
+    "confidence_sum": 8.599968253968255,
+    "latency_sum": 22.599999999999998,
+    "cost_sum": 4.2,
     "verification_pass_count": 0,
-    "verification_total": 48,
+    "verification_total": 51,
     "accepted_count": 0,
     "rejected_count": 0,
     "recent_attempts": [
       {
         "timestamp": "2026-08-19T19:37:43.140Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:10:04.348Z",
         "passed": true
       }
     ],
@@ -232,6 +366,18 @@
       {
         "timestamp": "2026-08-19T19:38:09.164Z",
         "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:10:27.657Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:10:27.663Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:10:27.667Z",
+        "passed": false
       }
     ]
   },
@@ -251,28 +397,80 @@
   "tavily::ai-adoption-signal": {
     "provider_id": "tavily",
     "capability": "ai-adoption-signal",
-    "tasks_attempted": 8,
-    "success_count": 8,
-    "confidence_sum": 6.302777777777778,
-    "latency_sum": 59.800000000000004,
-    "cost_sum": 2.8000000000000003,
+    "tasks_attempted": 9,
+    "success_count": 9,
+    "confidence_sum": 7.082777777777778,
+    "latency_sum": 71.7,
+    "cost_sum": 3.1500000000000004,
     "verification_pass_count": 0,
-    "verification_total": 11,
+    "verification_total": 14,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T20:10:16.279Z",
+        "passed": true
+      }
+    ],
+    "recent_verifications": [
+      {
+        "timestamp": "2026-08-19T20:10:27.661Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:10:27.666Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:10:27.671Z",
+        "passed": false
+      }
+    ]
   },
   "tavily::hiring-signals": {
     "provider_id": "tavily",
     "capability": "hiring-signals",
-    "tasks_attempted": 6,
-    "success_count": 6,
-    "confidence_sum": 4.539888888888889,
-    "latency_sum": 42.1,
-    "cost_sum": 2.1,
-    "verification_pass_count": 6,
-    "verification_total": 10,
+    "tasks_attempted": 7,
+    "success_count": 7,
+    "confidence_sum": 5.303638888888889,
+    "latency_sum": 53.7,
+    "cost_sum": 2.45,
+    "verification_pass_count": 8,
+    "verification_total": 16,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T20:10:17.364Z",
+        "passed": true
+      }
+    ],
+    "recent_verifications": [
+      {
+        "timestamp": "2026-08-19T20:10:27.658Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:10:27.660Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:10:27.664Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:10:27.665Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:10:27.668Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T20:10:27.669Z",
+        "passed": false
+      }
+    ]
   },
   "openai-analysis-provider::ai-adoption-signal": {
     "provider_id": "openai-analysis-provider",
@@ -326,7 +524,7 @@
   "openai-analysis-provider::data-validation": {
     "provider_id": "openai-analysis-provider",
     "capability": "data-validation",
-    "tasks_attempted": 3,
+    "tasks_attempted": 4,
     "success_count": 0,
     "confidence_sum": 0,
     "latency_sum": 0,
@@ -334,16 +532,22 @@
     "verification_pass_count": 0,
     "verification_total": 0,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T20:10:26.791Z",
+        "passed": false
+      }
+    ]
   },
   "apollo-provider::contact-enrichment": {
     "provider_id": "apollo-provider",
     "capability": "contact-enrichment",
-    "tasks_attempted": 6,
-    "success_count": 6,
-    "confidence_sum": 3.3,
-    "latency_sum": 13.100000000000001,
-    "cost_sum": 7.2,
+    "tasks_attempted": 7,
+    "success_count": 7,
+    "confidence_sum": 4.1,
+    "latency_sum": 15.3,
+    "cost_sum": 8.4,
     "verification_pass_count": 0,
     "verification_total": 7,
     "accepted_count": 0,
@@ -352,17 +556,21 @@
       {
         "timestamp": "2026-08-19T19:37:44.918Z",
         "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:10:06.591Z",
+        "passed": true
       }
     ]
   },
   "browser-executor::official-source-verification": {
     "provider_id": "browser-executor",
     "capability": "official-source-verification",
-    "tasks_attempted": 7,
-    "success_count": 6,
-    "confidence_sum": 4.2,
-    "latency_sum": 59.5,
-    "cost_sum": 9.9,
+    "tasks_attempted": 8,
+    "success_count": 7,
+    "confidence_sum": 5,
+    "latency_sum": 68.9,
+    "cost_sum": 10.8,
     "verification_pass_count": 0,
     "verification_total": 0,
     "accepted_count": 0,
@@ -370,6 +578,10 @@
     "recent_attempts": [
       {
         "timestamp": "2026-08-19T19:38:08.442Z",
+        "passed": true
+      },
+      {
+        "timestamp": "2026-08-19T20:10:26.787Z",
         "passed": true
       }
     ]

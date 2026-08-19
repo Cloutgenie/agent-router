@@ -11,6 +11,10 @@ import { actualProviderName } from "@/lib/providerLabel";
 import { ensureOverridesLoaded } from "@/lib/providers/overrideStore";
 import { getEligibleProviders } from "@/lib/providers/registry";
 import { applyFollowUp, buildFollowUpPlan, FOLLOW_UP_LABELS } from "@/lib/composer/followUp";
+import { getBillingAccount } from "@/lib/billing/account";
+import { calculateExecutionPrice, estimateExecutionPriceRange } from "@/lib/billing/pricing";
+import { checkSpendBeforeExecution } from "@/lib/billing/spendingCheck";
+import { ensurePeriodCreditProvisioned, recordExecutionUsage } from "@/lib/billing/usage";
 import {
   BuyerRecord,
   BudgetOutcome,
@@ -22,6 +26,7 @@ import {
   StrategyComparison,
   StrategyRunSummary,
   Task,
+  TaskBillingStatus,
   TaskConstraints,
   TraceEvent,
 } from "@/types";
@@ -61,6 +66,26 @@ function estimatePlanCost(plan: ExecutionPlan, mode: Task["mode"], config: Runti
     total += prices[Math.floor(prices.length / 2)];
   }
   return Math.round(total * 100) / 100;
+}
+
+/** Cheapest/priciest plausible provider-cost total across the plan - the billing gate's pre-flight estimate range (spec #9), distinct from `estimatePlanCost`'s single median figure. */
+function estimatePlanCostRange(plan: ExecutionPlan, mode: Task["mode"], config: RuntimeConfig): { lowDollars: number; highDollars: number } {
+  let low = 0;
+  let high = 0;
+  for (const step of plan.steps) {
+    const providers = getEligibleProviders(step.capability, mode, config);
+    if (providers.length === 0) continue;
+    const prices = providers.map((p) => p.price_per_task);
+    low += Math.min(...prices);
+    high += Math.max(...prices);
+  }
+  return { lowDollars: Math.round(low * 100) / 100, highDollars: Math.round(high * 100) / 100 };
+}
+
+/** No usable result produced -> never charge full price (spec #18-19). No auto-detected "partially_billable" yet - see lib/billing/usage.ts's chargeableCents doc. */
+function determineBillingStatus(task_status: Task["status"], resultCount: number): TaskBillingStatus {
+  if (task_status === "failed" || resultCount === 0) return "not_billable";
+  return "billable";
 }
 
 function computeEvaluationSummary(
@@ -272,6 +297,61 @@ export async function* runTaskPipeline(opts: RunPipelineOptions): AsyncGenerator
   yield emitTrace(`Created execution plan with ${plan.steps.length} step${plan.steps.length === 1 ? "" : "s"}`);
   yield { type: "plan", data: plan };
 
+  // Billing gate (billing core-architecture batch): only live-mode execution
+  // costs real money, so only live mode is checked here - Demo Mode keeps
+  // running exactly as it always has, no billing account involved at all.
+  // A blocked estimate refuses the whole task before any provider runs,
+  // same principle as the existing risk-class approval gate: never silently
+  // downgrade past a limit the task or account owner set.
+  if (config.mode === "live") {
+    const costRange = estimatePlanCostRange(plan, config.mode, config);
+    const priceEstimate = estimateExecutionPriceRange(costRange.lowDollars, costRange.highDollars);
+    const billingAccount = await getBillingAccount();
+    await ensurePeriodCreditProvisioned(billingAccount);
+    const spendCheck = await checkSpendBeforeExecution(billingAccount, priceEstimate, constraints.budget);
+    if (!spendCheck.allowed) {
+      yield emitTrace("Execution blocked", spendCheck.reason);
+      const blockedTask: Task = {
+        id: taskId,
+        traceId,
+        parentTaskId: opts.parentTaskId,
+        rootTaskId,
+        followUpTaskIds: [],
+        followUpAction: opts.followUpAction,
+        workflow,
+        mode: config.mode,
+        raw_task: rawTask,
+        created_at: createdAt,
+        completed_at: nowIso(),
+        budget: constraints.budget,
+        deadline_minutes: constraints.deadline_minutes,
+        quality_preference: constraints.quality_preference ?? "standard",
+        routing_preference: constraints.routing_preference ?? "balanced",
+        result_count: constraints.result_count ?? 15,
+        allow_parallel: constraints.allow_parallel ?? true,
+        status: "failed",
+        inferred_capabilities: capabilities,
+        plan,
+        buyer_results: [],
+        excluded_results: [],
+        evaluation_summary: {
+          average_confidence: 0,
+          total_cost: 0,
+          total_latency: 0,
+          providers_used: 0,
+          qualified_count: 0,
+          excluded_count: 0,
+          evidence_coverage: 0,
+          verified_claim_rate: 0,
+        },
+        execution_trace: trace,
+      };
+      await saveTaskToHistory(blockedTask);
+      yield { type: "final", data: blockedTask };
+      return blockedTask;
+    }
+  }
+
   for await (const stepEvent of executeStepGraph({
     taskId,
     traceId,
@@ -349,6 +429,23 @@ export async function* runTaskPipeline(opts: RunPipelineOptions): AsyncGenerator
   const anyCompleted = plan.steps.some((s) => s.status === "completed");
   const status: Task["status"] = anyCompleted || buyer_results.length > 0 ? "completed" : "failed";
 
+  // Billing (billing core-architecture batch): live mode only, using the
+  // ROUTED plan's actual cost - the comparison-mode single-provider
+  // baseline above is benchmarking/shadow work, not the deliverable, so its
+  // cost is deliberately platform-absorbed rather than billed (spec #47's
+  // shadow-execution policy).
+  let economics: Task["economics"];
+  if (config.mode === "live") {
+    const billingStatus = determineBillingStatus(status, buyer_results.length || (final_result ? 1 : 0));
+    const price = calculateExecutionPrice({ providerCostDollars: evaluation_summary.total_cost });
+    economics = await recordExecutionUsage({
+      userId: (await getBillingAccount()).userId,
+      taskId,
+      billingStatus,
+      price: { ...price, actualProviderCostCents: price.estimatedProviderCostCents, actualCustomerPriceCents: price.estimatedCustomerPriceCents },
+    });
+  }
+
   const task: Task = {
     id: taskId,
     traceId,
@@ -377,6 +474,7 @@ export async function* runTaskPipeline(opts: RunPipelineOptions): AsyncGenerator
     execution_trace: trace,
     budget_outcome,
     comparison,
+    economics,
   };
 
   await saveTaskToHistory(task);

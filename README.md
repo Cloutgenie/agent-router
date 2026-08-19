@@ -517,6 +517,73 @@ deliberately doesn't carry a verification estimate (matching the market-core bat
 keep its shape minimal/spec-faithful), and failure-rate lift would need a different data source
 entirely. Left out rather than approximated with something that would look precise but wasn't.
 
+### 12. Billing (`lib/billing/`) - core architecture only, no Stripe yet
+
+The economic abstraction: customers pay Task Dropoff for outcomes, not Tavily/Apollo/OpenAI/
+Gemini/Browserbase individually. This batch is the internal architecture that abstraction needs
+- pricing, entitlements, ledger, spending limits - with **no Stripe integration at all yet**
+(no Checkout, no webhooks, no real payment processing anywhere in this codebase). That's a
+separate, later batch, and it needs real Stripe test-mode keys from whoever picks it up next.
+
+**Single-tenant scaffold.** This app has no user/auth system, so there is exactly one
+`BillingAccount` (`lib/billing/account.ts`, `data/billing-account.json`), under one fixed
+`userId` constant rather than a real signed-in user. Every function here takes/returns a full
+`BillingAccount` instead of assuming global state, so a real multi-user system could replace the
+constant without touching the pricing/entitlement/ledger code that calls into it. A fresh account
+defaults to the **Pro** plan (`BILLING_DEFAULT_PLAN` in `.env`), not Free - there's no Checkout
+yet to actually buy a plan, so this is a local default that keeps this app's existing
+live-testing workflow working, not a real subscription.
+
+**Only live-mode task execution is ever billed** - Demo Mode remains completely free, no billing
+account touched at all (verified live: a demo-mode task with a deliberately tiny $0.10 budget ran
+normally with `economics: undefined`, while the identical task in live mode was correctly
+blocked before any provider ran).
+
+- **Plans** (`lib/billing/plans.ts`) - Starter/Pro/Business/Enterprise as one data-driven
+  `PLAN_DEFINITIONS` table (price, included execution balance, per-feature entitlements,
+  concurrency cap) rather than hard-coded throughout components. Enterprise is `contactSalesOnly`
+  - never automated, per spec.
+- **Entitlements** (`lib/billing/entitlements.ts`) - `getEntitlements(plan).can("browser_execution")`
+  is the one place feature gating should be checked, not a scattered `if (plan === "pro")`. Not
+  yet wired into the router/provider eligibility itself - that's the natural next step once a UI
+  needs to actually show/hide gated features.
+- **Pricing engine** (`lib/billing/pricing.ts`) - `calculateExecutionPrice()`: provider cost +
+  verification cost + a configurable markup (35% default) or minimum fee (25¢ default), whichever
+  is higher, in integer cents throughout (`dollarsToCents`/`centsToDollars` convert at the
+  boundary - this codebase's existing cost fields are dollar floats, billing math never is).
+  `verificationCostCents` stays 0 - this codebase doesn't meter verification separately from
+  ordinary provider cost yet (a verification step is just another routed step with its own
+  provider cost), a real field that's honestly zero rather than a fabricated split.
+- **Ledger** (`lib/billing/ledger.ts`, `data/execution-ledger.json`) - the source of truth for
+  historical billing, never derived from current task rows. Positive `amountCents` credits,
+  negative charges, so summing a user's entries is their balance directly. Idempotent by
+  `taskId`+`type`: finalizing the same task twice, or a duplicate delivery once webhooks exist,
+  writes the entry once.
+- **Included credit provisioning** (`lib/billing/usage.ts::ensurePeriodCreditProvisioned`) - a
+  plan's included execution balance is granted once per billing period, keyed by
+  `period-credit:<periodStart>` through the same idempotency mechanism - safe to call on every
+  task run. A future Stripe batch would trigger this from `invoice.paid` using the real invoice
+  id instead of `currentPeriodStart` - same mechanism, different trigger.
+- **Usage recording** (`lib/billing/usage.ts::recordExecutionUsage`) - called once per completed
+  live-mode task, in `lib/pipeline.ts`. Determines `TaskBillingStatus` first
+  (`not_billable`/`partially_billable`/`billable`/`refunded` - a task that produced no usable
+  result is never charged full price), writes one ledger entry, and returns a `TaskEconomics`
+  summary (`Task.economics`) with included-credit-applied vs. overage broken out. The
+  comparison-mode single-provider baseline run is deliberately **not** billed - it's
+  benchmarking/shadow work, not the deliverable, so its real provider cost is platform-absorbed
+  (matching the spec's own shadow-execution billing policy).
+- **Spending gate** (`lib/billing/spendingCheck.ts`, wired into `lib/pipeline.ts` right after
+  the plan is built, before any provider runs) - checks the task's own hard budget
+  (`TaskConstraints.budget`) against a price-range estimate, then the account's
+  `maxPerTaskCents`/`maxPerDayCents`/`maxPerMonthCents` (all optional - unset means unlimited).
+  A violated limit refuses the whole task outright with a plain-language reason (verified live)
+  - same "never silently downgrade past a limit" principle as the existing risk-class approval
+  gate, just applied to money instead of write actions.
+
+Not built in this batch: any Stripe integration, the `/settings/billing` UI, the
+`/api/billing/*`/`/api/webhooks/stripe` routes, entitlements actually gating router eligibility,
+and admin billing tooling - all explicitly separate, later batches.
+
 ## Data model
 
 See `types/index.ts` for the complete set - `Agent`/`AgentProvider`, `ProviderTask`,
@@ -527,7 +594,9 @@ deduplicated), `MCPToolDescriptor`/`MCPToolResult`, `ExecutionPolicy`/`Execution
 (risk class + approval status per capability), `ProviderOverride` (kill switches - enabled,
 degraded, cost/timeout/retry/concurrency caps, and who/why set it),
 `PersistentAgentExecutor`/`PersistentExecution` (start/status/resume/cancel lifecycle for
-longer-lived workers).
+longer-lived workers), `CapabilityPerformance`/`ExecutionOffer`/`ExecutionQuote`/`TrustTier`
+(execution market), `BillingAccount`/`SpendingLimits`/`ExecutionLedgerEntry`/`ExecutionPrice`/
+`TaskEconomics`/`PlanEntitlements` (billing).
 
 ## API
 

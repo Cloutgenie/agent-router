@@ -651,6 +651,117 @@ export interface Task {
   execution_trace: TraceEvent[];
   budget_outcome?: BudgetOutcome;
   comparison?: StrategyComparison;
+  /** What this task actually cost the customer vs. the platform (billing #27) - undefined for tasks run before billing existed, or in demo mode, which is never billed. */
+  economics?: TaskEconomics;
+}
+
+// ---------------------------------------------------------------------------
+// Billing (core architecture batch) - single-tenant scaffold: there is no
+// user/auth system in this app yet, so every account below is keyed by a
+// single fixed `userId` constant (lib/billing/account.ts) rather than a
+// real signed-in user. All money is integer cents, never floating point -
+// see lib/billing/pricing.ts. No Stripe calls happen anywhere in this
+// section; that's a separate, later batch. Demo Mode is never billed -
+// only live-mode task execution goes through any of this.
+// ---------------------------------------------------------------------------
+
+export type BillingPlan = "free" | "starter" | "pro" | "business" | "enterprise";
+
+export type BillingStatus = "inactive" | "trialing" | "active" | "past_due" | "canceled" | "unpaid";
+
+/** Customer-configurable hard ceilings (spec #10) - undefined means unlimited, not zero. */
+export interface SpendingLimits {
+  maxPerTaskCents?: number;
+  maxPerDayCents?: number;
+  maxPerMonthCents?: number;
+}
+
+export interface BillingAccount {
+  id: string;
+  userId: string;
+  stripeCustomerId: string | null;
+  subscriptionId: string | null;
+  plan: BillingPlan;
+  status: BillingStatus;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  spendingLimits: SpendingLimits;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Feature flags + limits a plan grants (spec #23) - the single source of
+ * truth routing/execution code should check (`getEntitlements(plan).can(...)`)
+ * rather than scattering `if (plan === "pro")` throughout the app.
+ */
+export interface PlanEntitlements {
+  maxUsers: number;
+  includedExecutionCents: number;
+  browserExecution: boolean;
+  apolloEnrichment: boolean;
+  benchmarks: boolean;
+  apiAccess: boolean;
+  mcp: boolean;
+  maxConcurrency: number;
+}
+
+export interface PlanDefinition {
+  plan: BillingPlan;
+  name: string;
+  /** Monthly subscription price, integer cents. 0 for free and enterprise (enterprise is "Contact Sales" - never automated). */
+  priceCents: number;
+  entitlements: PlanEntitlements;
+  contactSalesOnly?: boolean;
+}
+
+export type LedgerEntryType = "included_credit" | "execution_charge" | "credit_adjustment" | "refund" | "overage";
+
+/**
+ * One immutable event in a user's execution ledger (spec #16) - the ledger,
+ * not the current task rows, is the source of truth for historical billing.
+ * Sign convention: positive `amountCents` adds to balance (credits),
+ * negative subtracts (charges) - so summing every entry for a user yields
+ * their current balance directly.
+ */
+export interface ExecutionLedgerEntry {
+  id: string;
+  userId: string;
+  taskId?: string;
+  type: LedgerEntryType;
+  amountCents: number;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type TaskBillingStatus = "not_billable" | "partially_billable" | "billable" | "refunded";
+
+/**
+ * provider cost + verification cost + platform margin = customer price
+ * (spec #7-8). This codebase doesn't meter verification separately from
+ * ordinary provider cost - a verification step is just another routed step
+ * with its own provider cost - so `verificationCostCents` stays 0 until a
+ * future batch adds that split; it's a real field, not a placeholder that
+ * silently lies.
+ */
+export interface ExecutionPrice {
+  estimatedProviderCostCents: number;
+  actualProviderCostCents?: number;
+  verificationCostCents: number;
+  platformFeeCents: number;
+  estimatedCustomerPriceCents: number;
+  actualCustomerPriceCents?: number;
+}
+
+export interface TaskEconomics {
+  billingStatus: TaskBillingStatus;
+  customerPriceCents: number;
+  includedCreditAppliedCents: number;
+  overageAmountCents: number;
+  providerCostCents: number;
+  verificationCostCents: number;
+  platformCostCents: number;
+  grossMarginCents: number;
 }
 
 // ---------------------------------------------------------------------------

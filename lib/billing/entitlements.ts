@@ -1,0 +1,30 @@
+import { BillingPlan, PlanEntitlements } from "@/types";
+import { planDefinition } from "./plans";
+
+export type EntitlementFeature = "browser_execution" | "apollo_enrichment" | "benchmarks" | "api_access" | "mcp";
+
+const FEATURE_FIELD: Record<EntitlementFeature, keyof PlanEntitlements> = {
+  browser_execution: "browserExecution",
+  apollo_enrichment: "apolloEnrichment",
+  benchmarks: "benchmarks",
+  api_access: "apiAccess",
+  mcp: "mcp",
+};
+
+export interface Entitlements {
+  plan: BillingPlan;
+  raw: PlanEntitlements;
+  /** `entitlements.can("browser_execution")` - the one place feature gating should be checked, never a scattered `if (plan === "pro")`. */
+  can(feature: EntitlementFeature): boolean;
+}
+
+export function getEntitlements(plan: BillingPlan): Entitlements {
+  const raw = planDefinition(plan).entitlements;
+  return {
+    plan,
+    raw,
+    can(feature) {
+      return Boolean(raw[FEATURE_FIELD[feature]]);
+    },
+  };
+}
