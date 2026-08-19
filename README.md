@@ -486,6 +486,37 @@ success/verification/cost/latency per capability per provider.
   question - does routing actually beat a single provider - across a spread of scenario types,
   not just the flagship demo goal.
 
+### 11. Market dashboards (`lib/market/marketAnalytics.ts`)
+
+Three read-only pages over data the app already persists - no new write path, no new store,
+just pure aggregation functions the pages call directly (server components, same pattern as
+`/experiments`):
+
+- **`/market`** - the executive summary: active executors, capabilities, execution volume,
+  verified outcome rate, unmet demand, average cost, plus **Execution Alpha** and **Routing
+  Advantage** side by side (deliberately kept as two separate metrics, per spec - Execution
+  Alpha is the winner vs. the median of every executor actually quoted for the same step
+  (`ExecutionQuote` records, so it's cheap - no extra pipeline run); Routing Advantage is the
+  existing single-provider-vs-routed full comparison (`lib/history/routingAdvantage.ts`, now
+  the one shared implementation - it used to be independently duplicated, with a small rounding
+  drift, between the experiments API route and page). Below that, a **Market Gaps** table flags
+  capabilities with thin supply (≤1-2 active executors) or a high failure rate - deliberately
+  does *not* factor in demand growth like the spec's own worked example does, since a growth %
+  computed from this prototype's actual (small) task volume would be noise dressed up as a
+  trend.
+- **`/supply`** - every registered executor, mock and real, whether or not it has ever won a
+  job: eligibility count, wins, win rate, average price, trust tier, and a `revenue opportunity`
+  figure (`jobsCompleted × avgPrice` - a framing device, not a real revenue number).
+- **`/demand`** - the same underlying per-capability stats from the demand side: task/step
+  volume, success rate, unmet demand, active executor count, average cost/latency - built to
+  answer "which capabilities have real demand but weak supply."
+
+Execution Alpha's quality/cost/latency/reliability lift come straight from `ExecutionQuote`
+fields; **verification-rate lift and failure-rate reduction are not computed** - `ExecutionQuote`
+deliberately doesn't carry a verification estimate (matching the market-core batch's decision to
+keep its shape minimal/spec-faithful), and failure-rate lift would need a different data source
+entirely. Left out rather than approximated with something that would look precise but wasn't.
+
 ## Data model
 
 See `types/index.ts` for the complete set - `Agent`/`AgentProvider`, `ProviderTask`,
@@ -576,9 +607,10 @@ makes it traceable back to a mock source.
 - `ExecutionQuote` records are persisted for every step but nothing reads them back yet - no
   `GET /api/tasks/:id/quotes` endpoint or dashboard UI. `getQuotesForTask()` exists and is
   tested; wiring it up is future work.
-- Market Optimal, reputation, and the utility function have no dashboards, executor
-  registration, or shadow routing yet - these batches are the scoring/data-model layer those
-  would sit on top of, not the dashboards themselves.
+- The market dashboards (`/market`, `/supply`, `/demand`) have no executor registration, no
+  external executor API, and no per-capability drill-down page (`/market/:capability` from the
+  spec) - each capability's detail lives as a row in `/market`'s or `/demand`'s table instead of
+  its own route. No shadow routing dashboard either.
 - `trust_tier` is transparency only, not a routing exclusion (see "Reputation decay and trust
   tiers" above) - no per-tier task-volume cap or budget ceiling is enforced either, since the
   spec's stated reasons for both (protecting against unvetted external supply) don't apply

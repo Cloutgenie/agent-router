@@ -55,6 +55,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <Link href="/experiments" className="shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-muted transition hover:bg-surface-raised hover:text-foreground sm:px-3">
                 Experiments
               </Link>
+              <Link href="/market" className="shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-muted transition hover:bg-surface-raised hover:text-foreground sm:px-3">
+                Market
+              </Link>
+              <Link href="/supply" className="shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-muted transition hover:bg-surface-raised hover:text-foreground sm:px-3">
+                Supply
+              </Link>
+              <Link href="/demand" className="shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-muted transition hover:bg-surface-raised hover:text-foreground sm:px-3">
+                Demand
+              </Link>
             </nav>
           </div>
         </header>

@@ -155,10 +155,20 @@ const PROBATION_JOB_THRESHOLD = 5;
  * information this function is the only source of.
  */
 export function computeTrustTier(perf: CapabilityPerformance, override: ProviderOverride | undefined): TrustTier {
+  return trustTierFromJobCount(perf.jobsCompleted, override);
+}
+
+/**
+ * The job-count/override logic `computeTrustTier` runs, exposed directly for
+ * callers that only have an aggregate job count on hand (e.g. an
+ * executor-level supply view summed across every capability) rather than a
+ * single capability's `CapabilityPerformance`.
+ */
+export function trustTierFromJobCount(jobsCompleted: number, override: ProviderOverride | undefined): TrustTier {
   if (override?.enabled === false) return "suspended";
   if (override?.degraded === true) return "degraded";
-  if (perf.jobsCompleted === 0) return "new";
-  if (perf.jobsCompleted < PROBATION_JOB_THRESHOLD) return "probation";
+  if (jobsCompleted === 0) return "new";
+  if (jobsCompleted < PROBATION_JOB_THRESHOLD) return "probation";
   return "trusted";
 }
 

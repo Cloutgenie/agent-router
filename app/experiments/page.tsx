@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ComparisonPanel } from "@/components/ComparisonPanel";
+import { computeRoutingAdvantage } from "@/lib/history/routingAdvantage";
 import { listExperiments } from "@/lib/history/store";
 
 export const dynamic = "force-dynamic";
@@ -20,16 +21,7 @@ function DeltaTile({ label, value, isPercent = true }: { label: string; value: n
 
 export default async function ExperimentsPage() {
   const experiments = await listExperiments();
-
-  const advantage =
-    experiments.length > 0
-      ? {
-          quality: avg(experiments.map((e) => e.comparison.qualityDelta)),
-          evidenceCoverage: avg(experiments.map((e) => e.comparison.evidenceCoverageDelta)),
-          verifiedClaimRate: avg(experiments.map((e) => e.comparison.verifiedClaimRateDelta)),
-          failedRate: avg(experiments.map((e) => e.comparison.failedRateDelta)),
-        }
-      : null;
+  const advantage = computeRoutingAdvantage(experiments);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
@@ -77,9 +69,4 @@ export default async function ExperimentsPage() {
       </div>
     </div>
   );
-}
-
-function avg(values: number[]): number {
-  if (values.length === 0) return 0;
-  return values.reduce((s, v) => s + v, 0) / values.length;
 }

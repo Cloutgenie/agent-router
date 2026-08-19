@@ -70,3 +70,8 @@ export async function getQuotesForTask(taskId: string): Promise<ExecutionQuote[]
   const all = await readAll();
   return all.filter((q) => q.taskId === taskId);
 }
+
+/** Every persisted quote - for market-wide analytics (Execution Alpha, capability liquidity) that need the full set, not one task's. */
+export async function getAllQuotes(): Promise<ExecutionQuote[]> {
+  return readAll();
+}

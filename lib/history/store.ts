@@ -43,6 +43,11 @@ export async function saveTaskToHistory(task: Task): Promise<void> {
   }
 }
 
+/** Full `Task[]` for every persisted task - for analytics that need `plan.steps`/`candidates`, not just the summarized `TaskHistoryEntry` shape `listHistory()` returns. */
+export async function getAllHistoryTasks(): Promise<Task[]> {
+  return readAll();
+}
+
 export async function listHistory(): Promise<TaskHistoryEntry[]> {
   const tasks = await readAll();
   return tasks.map(toHistoryEntry).sort((a, b) => b.created_at.localeCompare(a.created_at));
