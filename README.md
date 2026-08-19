@@ -691,9 +691,31 @@ with the real `browser-executor` absent; switching the same account to **Pro** a
 the identical task put `apollo-provider` and `browser-executor` back in the candidate pool and
 both were correctly selected. Confirmed in both directions, not just "always excluded."
 
-Not built yet: metered overage usage reporting to Stripe (`STRIPE_EXECUTION_USAGE_PRICE_ID` is
-reserved but unread), and third-party executor payouts (Stripe Connect) - explicitly a future
-phase per the original spec, not started.
+**Metered overage reporting** (`lib/billing/stripe/usageReporting.ts`) - once a task pushes an
+account into overage, that overage is reported to Stripe as a real-time billing meter event,
+through the *current* Stripe metered-billing API (`stripe.billing.meterEvents.create`), not the
+older `subscriptionItems.createUsageRecord` API most training data/documentation still describes
+- confirmed by reading the installed SDK's own type definitions before writing this, the same
+verify-against-real-types approach that caught the subscription-period-dates detail in the
+Stripe integration batch. A meter event correlates to billing by customer id plus the meter's
+configured `event_name`, not a price id - so the existing, still-unused
+`STRIPE_EXECUTION_USAGE_PRICE_ID` (reserved for a separate, still-unbuilt "attach the metered
+price to the subscription at Checkout" step) is a genuinely different concern from the new
+`STRIPE_EXECUTION_METER_EVENT_NAME`, which reporting actually needs. Reported in cents,
+idempotent via the task id as Stripe's own event `identifier`, and strictly best-effort: a
+reporting failure is caught and logged, never allowed to fail the task or hide the receipt -
+the local ledger, not Stripe, is always the source of truth for what a customer owes.
+
+Live-verified the failure-mode safety this batch's correctness actually depends on (the happy
+path itself can't be verified without a real Stripe meter - see the Stripe integration section's
+caveat, which applies here too): forced a real account into genuine overage twice via the admin
+credit tools and real live tasks - once with no Stripe customer id (skips reporting entirely)
+and once with a fake customer id but Stripe still unconfigured (reporting attempts its own
+`isMeteredReportingConfigured()` check and no-ops before ever calling Stripe) - both tasks
+completed normally with correct receipts and zero errors in the server logs.
+
+Not built yet: third-party executor payouts (Stripe Connect) - explicitly a future phase per the
+original spec, not started.
 
 ## Data model
 

@@ -15,6 +15,7 @@ import { getBillingAccount } from "@/lib/billing/account";
 import { Entitlements, getEntitlements } from "@/lib/billing/entitlements";
 import { calculateExecutionPrice, estimateExecutionPriceRange } from "@/lib/billing/pricing";
 import { checkSpendBeforeExecution } from "@/lib/billing/spendingCheck";
+import { reportOverageToStripe } from "@/lib/billing/stripe/usageReporting";
 import { ensurePeriodCreditProvisioned, recordExecutionUsage } from "@/lib/billing/usage";
 import {
   BuyerRecord,
@@ -314,10 +315,13 @@ export async function* runTaskPipeline(opts: RunPipelineOptions): AsyncGenerator
   // through everything below - the estimate above, the real routing run,
   // and the comparison-mode baseline - so a plan-gated provider (billing
   // #23, e.g. Apollo without `apollo_enrichment`) is consistently excluded
-  // everywhere, not just at execution time.
+  // everywhere, not just at execution time. `billingAccount` is hoisted
+  // too, so the later usage-recording step reuses this same fetch instead
+  // of re-reading it.
   let entitlements: Entitlements | undefined;
+  let billingAccount: Awaited<ReturnType<typeof getBillingAccount>> | undefined;
   if (config.mode === "live") {
-    const billingAccount = await getBillingAccount();
+    billingAccount = await getBillingAccount();
     entitlements = getEntitlements(billingAccount.plan);
     const costRange = estimatePlanCostRange(plan, config.mode, config, entitlements);
     const priceEstimate = estimateExecutionPriceRange(costRange.lowDollars, costRange.highDollars);
@@ -451,15 +455,28 @@ export async function* runTaskPipeline(opts: RunPipelineOptions): AsyncGenerator
   // cost is deliberately platform-absorbed rather than billed (spec #47's
   // shadow-execution policy).
   let economics: Task["economics"];
-  if (config.mode === "live") {
+  if (config.mode === "live" && billingAccount) {
     const billingStatus = determineBillingStatus(status, buyer_results.length || (final_result ? 1 : 0));
     const price = calculateExecutionPrice({ providerCostDollars: evaluation_summary.total_cost });
     economics = await recordExecutionUsage({
-      userId: (await getBillingAccount()).userId,
+      userId: billingAccount.userId,
       taskId,
       billingStatus,
       price: { ...price, actualProviderCostCents: price.estimatedProviderCostCents, actualCustomerPriceCents: price.estimatedCustomerPriceCents },
     });
+
+    // Metered overage reporting (billing #17, #20) - best-effort and
+    // non-blocking: a Stripe reporting failure must never fail the task or
+    // hide the receipt from the user. No-ops entirely when Stripe/the meter
+    // event name isn't configured, or the account has no Stripe customer
+    // yet (never went through Checkout).
+    if (economics.overageAmountCents > 0 && billingAccount.stripeCustomerId) {
+      await reportOverageToStripe({
+        customerId: billingAccount.stripeCustomerId,
+        overageCents: economics.overageAmountCents,
+        taskId,
+      }).catch((err) => console.warn(`Could not report overage to Stripe for task ${taskId}:`, err));
+    }
   }
 
   const task: Task = {
