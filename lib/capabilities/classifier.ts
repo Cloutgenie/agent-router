@@ -112,6 +112,21 @@ const CAPABILITY_KEYWORDS: Record<Capability, string[]> = {
     "ai help",
     "ai services",
   ],
+  "official-source-verification": [
+    "official source",
+    "official website",
+    "official page",
+    "browser verification",
+    "verify on their site",
+  ],
+  "crm-read": ["read from crm", "crm data", "check the crm", "look up in crm"],
+  "crm-write": ["update crm", "write to crm", "log to crm", "log in crm"],
+  "email-read": ["check email", "read email", "check inbox"],
+  "email-send": ["send an email", "send email", "email them", "draft an email"],
+  "calendar-read": ["check calendar", "view calendar", "check availability"],
+  "calendar-write": ["schedule a meeting", "book a meeting", "add to calendar", "schedule a call"],
+  "file-read": ["read file", "open file", "read the document"],
+  "file-write": ["save file", "write file", "upload file", "save the document"],
 };
 
 const DEFAULT_CAPABILITIES: Capability[] = ["web-research", "summarization"];

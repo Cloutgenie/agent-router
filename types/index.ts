@@ -22,7 +22,16 @@ export type Capability =
   | "summarization"
   | "competitor-analysis"
   | "market-research"
-  | "ai-adoption-signal";
+  | "ai-adoption-signal"
+  | "official-source-verification"
+  | "crm-read"
+  | "crm-write"
+  | "email-read"
+  | "email-send"
+  | "calendar-read"
+  | "calendar-write"
+  | "file-read"
+  | "file-write";
 
 export const ALL_CAPABILITIES: Capability[] = [
   "company-research",
@@ -38,6 +47,15 @@ export const ALL_CAPABILITIES: Capability[] = [
   "competitor-analysis",
   "market-research",
   "ai-adoption-signal",
+  "official-source-verification",
+  "crm-read",
+  "crm-write",
+  "email-read",
+  "email-send",
+  "calendar-read",
+  "calendar-write",
+  "file-read",
+  "file-write",
 ];
 
 export interface CapabilityClassifier {
@@ -161,6 +179,41 @@ export interface ProviderSummary {
   price_per_task: number;
   average_latency_seconds: number;
   configured: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// MCP support (spec #25-26) - generic Model Context Protocol tool calling.
+// Scopes gate write-capable tools behind explicit configuration; the router
+// never sees (and therefore can never select) a capability whose scope
+// hasn't been granted - see MCP_GRANTED_SCOPES in lib/config.ts.
+// ---------------------------------------------------------------------------
+
+export type MCPPermissionScope =
+  | "crm.read"
+  | "crm.write"
+  | "email.read"
+  | "email.send"
+  | "calendar.read"
+  | "calendar.write"
+  | "files.read"
+  | "files.write";
+
+export interface MCPToolDescriptor {
+  serverId: string;
+  toolName: string;
+  description?: string;
+  inputSchema?: unknown;
+}
+
+export interface MCPToolResult {
+  toolName: string;
+  isError: boolean;
+  text: string;
+}
+
+export interface MCPExecutor extends AgentProvider {
+  listTools(): Promise<MCPToolDescriptor[]>;
+  callTool(toolName: string, input: Record<string, unknown>): Promise<MCPToolResult>;
 }
 
 // ---------------------------------------------------------------------------

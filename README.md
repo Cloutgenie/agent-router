@@ -154,9 +154,11 @@ interface AgentProvider {
 (discovery, web/market/competitor research, AI-signal fallback), `MockFundingProvider`,
 `MockHiringProvider`, `MockContactProvider` (light role lookup, or full name/email/LinkedIn
 enrichment when a follow-up sets `context.deepEnrichment`), `MockVerificationProvider`
-(cross-checks upstream claims before the Evaluator's own independent pass). They draw from
-`data/demo-companies.ts` - 25 clearly fictional companies spanning strong-to-weak signal
-strength, so the Evaluator has real records to reject, not just ones to rubber-stamp.
+(cross-checks upstream claims before the Evaluator's own independent pass), `MockBrowserExecutor`
+(simulates re-checking an official careers page - see "Browser execution" below), and
+`MockMCPExecutor` (simulates a generic MCP tool call). They draw from `data/demo-companies.ts` -
+25 clearly fictional companies spanning strong-to-weak signal strength, so the Evaluator has
+real records to reject, not just ones to rubber-stamp.
 
 **Real adapters** (`lib/providers/adapters/`):
 
@@ -170,12 +172,53 @@ strength, so the Evaluator has real records to reject, not just ones to rubber-s
   only over evidence upstream steps already retrieved - never gathering evidence itself. With
   both configured, the router genuinely chooses between two live LLM executors, not a single
   hardcoded model.
-- `ApolloProvider`, `ClayProvider`, `MCPProvider`, `A2AProvider`, `RestProvider` are structured
-  exactly like a real integration but throw a clear `ProviderNotImplementedError` from
-  `execute()` until someone fills in the TODO - see "Going from mock to real" below.
+- `BrowserExecutor` (`browserExecutor.ts`) and `MCPProvider` (`mcpProvider.ts`) are also real,
+  working integrations - see "Browser execution" and "MCP support" below.
+- `ApolloProvider`, `ClayProvider`, `A2AProvider`, `RestProvider` are structured exactly like a
+  real integration but throw a clear `ProviderNotImplementedError` from `execute()` until
+  someone fills in the TODO - see "Going from mock to real" below.
 
 Every real adapter reports `configured` based on which env vars from `.env.example` are
 actually present.
+
+#### Browser execution (`lib/providers/adapters/browserExecutor.ts`)
+
+Read-only by construction: it only ever issues GET requests against a company's own official
+pages (`/careers`, `/jobs`), never submits a form, logs in, or performs any write action. It's a
+lightweight static-HTML page reader (fetch + text extraction), not full headless-browser JS
+rendering - most careers pages are server-rendered, which covers the "verify an official
+source" use case this executor exists for. `BROWSERBASE_API_KEY` / `BROWSERBASE_PROJECT_ID` are
+reserved for a future swap to real Browserbase/Stagehand sessions and aren't read yet; only
+`ENABLE_BROWSER_EXECUTION=true` gates this adapter today.
+
+**Escalation, not blanket checking.** A dedicated `browser-verify` plan step
+(`lib/providers/browserEscalation.ts::needsBrowserEscalation`, shared by the mock and real
+adapter so Demo and Live Mode agree) only actually checks a company's careers page when the
+upstream hiring signal's average confidence is below 0.75 - an already-confident signal is left
+alone. When it does check: a confirmed posting adds a fresh, high-quality corroborating evidence
+item (raising confidence, sometimes past the verification threshold on its own); a posting that's
+no longer there adds a low-confidence one instead, which pulls the claim's weighted confidence
+down and can produce a genuine "needs review" contradiction against the original signal - both
+outcomes from the spec's worked examples happen for real in this build, not just as scripted UI
+states. `lib/composer/buyerComposer.ts` merges this evidence into the hiring/security claims
+before verification runs, and surfaces a plain-language decision factor either way.
+
+#### MCP support (`lib/providers/adapters/mcpProvider.ts`, `lib/providers/mcp/client.ts`)
+
+A real MCP client over the "Streamable HTTP" JSON-RPC 2.0 transport - `initialize` →
+`notifications/initialized` → `tools/list` → `tools/call` - not a placeholder, forwarding the
+`Mcp-Session-Id` a server returns on every subsequent call. It deliberately never advertises
+`company-research`: an arbitrary MCP server's tool output won't match the `{ companies,
+byCompany }` shape the flagship discovery step requires, so it can't silently produce zero
+results if routed there. Tool selection is a simple keyword match between the capability and each
+discovered tool's name/description.
+
+**Permission scopes.** `crm-read` / `email-read` / `calendar-read` / `file-read` are available as
+soon as `MCP_SERVER_URL` is configured. `crm-write` / `email-send` / `calendar-write` /
+`file-write` additionally require their exact scope (`crm.write`, `email.send`, ...) to be
+listed in `MCP_GRANTED_SCOPES` - the router never even sees an ungranted write capability as
+eligible, so it can't select a tool call nobody approved (tested in `tests/mcpProvider.test.ts`,
+including a full mocked-server round trip for a granted write call).
 
 **Mode.** `lib/config.ts` reads `ENABLE_LIVE_PROVIDERS`. In Demo Mode the router only ever
 sees mocks. In Live Mode, configured real adapters join the pool *alongside* the mocks, which
@@ -356,9 +399,19 @@ makes it traceable back to a mock source.
 - `TavilyProvider`'s live discovery derives a company name from the search result's title/
   domain (never a fabricated name) since Tavily returns web pages, not structured company
   entities - it's a best-effort normalization, not perfect entity extraction.
-- `OpenAI` is not wired yet (Anthropic and Gemini are the two live LLM adapters today); browser
-  execution (Browserbase/Stagehand) and real MCP tool invocation are still unimplemented
-  shells, same as Apollo/Clay/A2A/generic-REST - see "Going from mock to real" above.
+- `OpenAI` is not wired yet (Anthropic and Gemini are the two live LLM adapters today); Apollo,
+  Clay, A2A, and generic-REST are still unimplemented shells - see "Going from mock to real"
+  above.
+- `BrowserExecutor` is a static-HTML fetch + text extraction, not full headless-browser JS
+  rendering (no real Browserbase/Stagehand session yet - `BROWSERBASE_API_KEY` /
+  `BROWSERBASE_PROJECT_ID` are reserved but unread). It only checks `/careers` and `/jobs`
+  paths, and only for the hiring signal - funding/AI-signal browser escalation would follow the
+  exact same `needsBrowserEscalation` pattern but isn't wired up yet.
+- `MCPProvider`'s tool selection is a keyword match between capability and tool name/description,
+  not a negotiated capability handshake - a server whose tools are named unhelpfully may not get
+  matched to the right capability. It's been verified against a mocked JSON-RPC server
+  (`tests/mcpProvider.test.ts`), not a real MCP server, since none is configured in this
+  environment.
 - `/benchmarks` measures single-provider-baseline-vs-routed (the same `StrategyComparison`
   used everywhere else), applied across 20 scenarios that vary the goal and requested depth
   against the shared demo company pool - not per-scenario bespoke evidence fixtures, and not

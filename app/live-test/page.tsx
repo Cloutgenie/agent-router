@@ -18,7 +18,14 @@ const DEFAULT_CONSTRAINTS = {
   compare_strategies: true,
 };
 
-const WATCHED_PROVIDER_IDS = ["tavily", "apollo-provider", "llm-analysis-provider", "gemini-analysis-provider"];
+const WATCHED_PROVIDER_IDS = [
+  "tavily",
+  "apollo-provider",
+  "llm-analysis-provider",
+  "gemini-analysis-provider",
+  "browser-executor",
+  "mcp-provider",
+];
 
 /**
  * Live Test workspace (spec #50): a fixed, non-negotiable configuration -
@@ -82,9 +89,6 @@ export default function LiveTestPage() {
                   {p.name} · {p.configured ? "live" : "not configured (mock fallback)"}
                 </span>
               ))}
-              <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-[11px] font-medium text-muted-dim">
-                Browser verification · not yet implemented
-              </span>
             </div>
           )}
         </div>

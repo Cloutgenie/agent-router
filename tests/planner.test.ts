@@ -25,10 +25,10 @@ describe("detectWorkflow", () => {
 });
 
 describe("buildExecutionPlan", () => {
-  it("builds a 6-step multi-provider plan for buyer discovery with correct dependencies", () => {
+  it("builds a 7-step multi-provider plan for buyer discovery with correct dependencies", () => {
     const plan = buildExecutionPlan("goal", [], "buyer-discovery");
     const ids = plan.steps.map((s) => s.id);
-    expect(ids).toEqual(["discover", "funding", "ai-signal", "hiring", "contact", "validate"]);
+    expect(ids).toEqual(["discover", "funding", "ai-signal", "hiring", "contact", "browser-verify", "validate"]);
 
     const discover = plan.steps.find((s) => s.id === "discover")!;
     expect(discover.dependencies).toEqual([]);
@@ -36,8 +36,11 @@ describe("buildExecutionPlan", () => {
     const funding = plan.steps.find((s) => s.id === "funding")!;
     expect(funding.dependencies).toEqual(["discover"]);
 
+    const browserVerify = plan.steps.find((s) => s.id === "browser-verify")!;
+    expect(browserVerify.dependencies.sort()).toEqual(["discover", "hiring"].sort());
+
     const validate = plan.steps.find((s) => s.id === "validate")!;
-    expect(validate.dependencies.sort()).toEqual(["ai-signal", "contact", "funding", "hiring"].sort());
+    expect(validate.dependencies.sort()).toEqual(["ai-signal", "browser-verify", "contact", "funding", "hiring"].sort());
   });
 
   it("builds one independent step per capability for generic tasks", () => {

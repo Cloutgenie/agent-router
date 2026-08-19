@@ -38,6 +38,7 @@ const STEP_LIVE_LABELS: Record<string, string> = {
   "ai-signal": "Analyzing AI/security signals",
   hiring: "Checking hiring",
   contact: "Finding decision makers",
+  "browser-verify": "Checking official career pages",
   validate: "Verifying claims",
 };
 

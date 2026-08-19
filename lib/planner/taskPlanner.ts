@@ -71,11 +71,18 @@ function buildBuyerDiscoverySteps(): ExecutionStep[] {
     emptyStep("ai-signal", "ai-adoption-signal", "Detect AI adoption or AI-related product signals", ["discover"]),
     emptyStep("hiring", "hiring-signals", "Detect security hiring or infrastructure growth", ["discover"]),
     emptyStep("contact", "contact-enrichment", "Find the likely security/technical decision maker", ["discover"]),
+    emptyStep(
+      "browser-verify",
+      "official-source-verification",
+      "Verify weak hiring signals directly on official career pages",
+      ["discover", "hiring"]
+    ),
     emptyStep("validate", "data-validation", "Cross-check evidence across all collected signals", [
       "funding",
       "ai-signal",
       "hiring",
       "contact",
+      "browser-verify",
     ]),
   ];
 }
@@ -94,6 +101,15 @@ const CAPABILITY_DESCRIPTIONS: Partial<Record<Capability, string>> = {
   "competitor-analysis": "Map the competitive landscape",
   "market-research": "Size the market and identify trends",
   "ai-adoption-signal": "Detect AI adoption or AI product signals",
+  "official-source-verification": "Verify a claim directly against an official source",
+  "crm-read": "Read records from a connected CRM",
+  "crm-write": "Write records to a connected CRM",
+  "email-read": "Read a connected mailbox",
+  "email-send": "Send email on the user's behalf",
+  "calendar-read": "Check calendar availability",
+  "calendar-write": "Schedule a calendar event",
+  "file-read": "Read a connected file or document",
+  "file-write": "Write a connected file or document",
 };
 
 /**

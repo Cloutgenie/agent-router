@@ -1,4 +1,15 @@
-import { ExecutionMode } from "@/types";
+import { ExecutionMode, MCPPermissionScope } from "@/types";
+
+const ALL_MCP_SCOPES: MCPPermissionScope[] = [
+  "crm.read",
+  "crm.write",
+  "email.read",
+  "email.send",
+  "calendar.read",
+  "calendar.write",
+  "files.read",
+  "files.write",
+];
 
 /**
  * Environment-based configuration. This is the single place that decides
@@ -13,8 +24,18 @@ export interface RuntimeConfig {
   tavilyConfigured: boolean;
   geminiConfigured: boolean;
   mcpConfigured: boolean;
+  /** Write-capable MCP scopes explicitly allowlisted via MCP_GRANTED_SCOPES - never assumed. */
+  mcpGrantedScopes: MCPPermissionScope[];
   a2aConfigured: boolean;
   restConfigured: boolean;
+  browserExecutionConfigured: boolean;
+  maxBrowserPagesPerTask: number;
+}
+
+function parseGrantedScopes(raw: string | undefined): MCPPermissionScope[] {
+  if (!raw) return [];
+  const requested = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return ALL_MCP_SCOPES.filter((scope) => requested.includes(scope));
 }
 
 export function getRuntimeConfig(): RuntimeConfig {
@@ -28,7 +49,10 @@ export function getRuntimeConfig(): RuntimeConfig {
     tavilyConfigured: liveEnabled && Boolean(process.env.TAVILY_API_KEY),
     geminiConfigured: liveEnabled && Boolean(process.env.GEMINI_API_KEY),
     mcpConfigured: liveEnabled && Boolean(process.env.MCP_SERVER_URL),
+    mcpGrantedScopes: liveEnabled ? parseGrantedScopes(process.env.MCP_GRANTED_SCOPES) : [],
     a2aConfigured: liveEnabled && Boolean(process.env.A2A_REGISTRY_URL),
     restConfigured: liveEnabled && Boolean(process.env.REST_PROVIDER_URL),
+    browserExecutionConfigured: liveEnabled && process.env.ENABLE_BROWSER_EXECUTION === "true",
+    maxBrowserPagesPerTask: Number(process.env.MAX_BROWSER_PAGES_PER_TASK ?? 10),
   };
 }

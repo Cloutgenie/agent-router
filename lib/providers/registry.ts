@@ -2,15 +2,18 @@ import { getRuntimeConfig, RuntimeConfig } from "@/lib/config";
 import { AgentProvider, Capability, ExecutionMode, ProviderSummary } from "@/types";
 import { createA2AProvider } from "./adapters/a2aProvider";
 import { createApolloProvider } from "./adapters/apolloProvider";
+import { createBrowserExecutor } from "./adapters/browserExecutor";
 import { createClayProvider } from "./adapters/clayProvider";
 import { createGeminiAnalysisProvider } from "./adapters/geminiProvider";
 import { createLLMAnalysisProvider } from "./adapters/llmAnalysisProvider";
 import { createMCPProvider } from "./adapters/mcpProvider";
 import { createRestProvider } from "./adapters/restProvider";
 import { createTavilyProvider } from "./adapters/tavilyProvider";
+import { MockBrowserExecutor } from "./mock/browserExecutor";
 import { MockContactProvider } from "./mock/contactProvider";
 import { MockFundingProvider } from "./mock/fundingProvider";
 import { MockHiringProvider } from "./mock/hiringProvider";
+import { MockMCPExecutor } from "./mock/mcpMockProvider";
 import { MockResearchProvider } from "./mock/researchProvider";
 import { MockVerificationProvider } from "./mock/verificationProvider";
 
@@ -20,6 +23,8 @@ const MOCK_PROVIDERS: AgentProvider[] = [
   MockHiringProvider,
   MockContactProvider,
   MockVerificationProvider,
+  MockBrowserExecutor,
+  MockMCPExecutor,
 ];
 
 /** Every provider the platform knows about - mocks (always active) plus real adapters (active once configured). */
@@ -34,6 +39,7 @@ export function getAllProviders(config: RuntimeConfig = getRuntimeConfig()): Age
     createRestProvider(config),
     createLLMAnalysisProvider(config),
     createGeminiAnalysisProvider(config),
+    createBrowserExecutor(config),
   ];
 }
 

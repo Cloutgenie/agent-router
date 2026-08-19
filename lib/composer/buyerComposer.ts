@@ -49,6 +49,7 @@ export function composeBuyerResults(
   const hiringByCompany = stepByCompany(plan, "hiring");
   const aiByCompany = stepByCompany(plan, "ai-signal");
   const contactByCompany = stepByCompany(plan, "contact");
+  const browserByCompany = stepByCompany(plan, "browser-verify");
 
   const resultCount = constraints.result_count ?? 15;
   const records: BuyerRecord[] = [];
@@ -59,6 +60,9 @@ export function composeBuyerResults(
     const hiringInfo = hiringByCompany[company.name] ?? {};
     const aiInfo = aiByCompany[company.name] ?? {};
     const contactInfo = contactByCompany[company.name] ?? {};
+    const browserInfo = browserByCompany[company.name] ?? {};
+    const browserVerified = Boolean(browserInfo.hiringPageConfirmed !== undefined);
+    const hiringEvidenceForVerification = [...(hiringInfo.evidence ?? []), ...(browserInfo.evidence ?? [])];
 
     const fundingSignal = (fundingInfo.fundingSignal as string) ?? "No recent funding signal found";
     const fundingStage = (fundingInfo.fundingStage as string) ?? "Unknown";
@@ -74,9 +78,9 @@ export function composeBuyerResults(
       companyFitStatement: `Matches target category: ${company.industry}`,
       fundingEvidence: fundingInfo.evidence ?? [],
       fundingStatement: fundingSignal,
-      hiringEvidence: hiringInfo.evidence ?? [],
+      hiringEvidence: hiringEvidenceForVerification,
       hiringStatement: hiringSignal,
-      securityEvidence: hiringInfo.evidence ?? [],
+      securityEvidence: hiringEvidenceForVerification,
       securityStatement: securitySignal,
       aiEvidence: aiInfo.evidence ?? [],
       aiStatement: aiSignal,
@@ -102,6 +106,13 @@ export function composeBuyerResults(
       decisionMakerRole,
       sourceCount: verification.sourceCount,
     });
+    if (browserVerified) {
+      decisionFactors.push(
+        browserInfo.hiringPageConfirmed
+          ? "Hiring signal confirmed directly on the official careers page"
+          : "Hiring signal downgraded - not found on the official careers page during direct verification"
+      );
+    }
 
     const whyNow = buildWhyNow(verification.claims, { fundingSignal, hiringSignal, aiSignal });
 
@@ -109,6 +120,7 @@ export function composeBuyerResults(
       ...(discoverInfo.evidence ?? []),
       ...(fundingInfo.evidence ?? []),
       ...(hiringInfo.evidence ?? []),
+      ...(browserInfo.evidence ?? []),
       ...(aiInfo.evidence ?? []),
       ...(contactInfo.evidence ?? []),
     ];
@@ -119,6 +131,7 @@ export function composeBuyerResults(
           discover?.selectedProviderId,
           fundingByCompany[company.name] ? plan.steps.find((s) => s.id === "funding")?.selectedProviderId : undefined,
           hiringByCompany[company.name] ? plan.steps.find((s) => s.id === "hiring")?.selectedProviderId : undefined,
+          browserVerified ? plan.steps.find((s) => s.id === "browser-verify")?.selectedProviderId : undefined,
           aiByCompany[company.name] ? plan.steps.find((s) => s.id === "ai-signal")?.selectedProviderId : undefined,
           contactByCompany[company.name] ? plan.steps.find((s) => s.id === "contact")?.selectedProviderId : undefined,
         ].filter((v): v is string => Boolean(v))

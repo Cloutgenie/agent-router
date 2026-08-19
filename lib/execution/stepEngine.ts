@@ -66,6 +66,7 @@ const CONTEXT_KEY_FOR_STEP: Record<string, string> = {
   "ai-signal": "aiByCompany",
   hiring: "hiringByCompany",
   contact: "contactByCompany",
+  "browser-verify": "browserByCompany",
   validate: "validationByCompany",
 };
 
