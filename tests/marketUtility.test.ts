@@ -2,10 +2,22 @@ import { describe, expect, it } from "vitest";
 import {
   buildExecutionOffer,
   computeCapabilityPerformance,
+  computeTrustTier,
   computeUtility,
   wilsonLowerBound,
 } from "@/lib/router/marketUtility";
+import { ProviderOverride, TimestampedOutcome } from "@/types";
 import { makeMetrics, makeProvider } from "./fixtures";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function outcomesAgo(daysAgo: number, count: number, passed: boolean, now: number): TimestampedOutcome[] {
+  return Array.from({ length: count }, () => ({ timestamp: new Date(now - daysAgo * DAY_MS).toISOString(), passed }));
+}
+
+function overrideOf(patch: Partial<ProviderOverride>): ProviderOverride {
+  return { enabled: true, degraded: false, updatedAt: new Date().toISOString(), updatedBy: "manual", ...patch };
+}
 
 describe("wilsonLowerBound", () => {
   it("returns a neutral 0.5 prior when there is no data", () => {
@@ -50,6 +62,110 @@ describe("computeCapabilityPerformance", () => {
     expect(perf.jobsCompleted).toBe(200);
     expect(perf.successRate).toBeGreaterThan(0.85); // Wilson bound on 190/200, well above the static prior
     expect(perf.avgQuality).toBeGreaterThan(0.9); // mostly trusts the observed 0.95 over the 0.5 prior at n=200
+  });
+
+  it("falls back to the pure lifetime rate when there is no recency log yet, rather than dragging it toward neutral", () => {
+    const provider = makeProvider({ id: "p1" });
+    const metrics = makeMetrics("p1", "company-research", {
+      tasks_attempted: 200,
+      success_count: 190,
+      // recent_attempts intentionally left as [] - simulates lifetime totals that predate the recency log field
+    });
+    const perf = computeCapabilityPerformance(provider, "company-research", metrics);
+    expect(perf.successRate).toBeGreaterThan(0.85); // must not be dragged toward 0.5 by an empty recency log
+  });
+
+  it("weighs a recent failure streak more heavily than an old one at the same lifetime rate", () => {
+    const provider = makeProvider({ id: "p1" });
+    const now = Date.parse("2026-06-01T00:00:00.000Z");
+
+    const recentlyDeclined = computeCapabilityPerformance(
+      provider,
+      "company-research",
+      makeMetrics("p1", "company-research", {
+        tasks_attempted: 100,
+        success_count: 50,
+        recent_attempts: [...outcomesAgo(5, 10, false, now), ...outcomesAgo(5, 2, true, now)], // mostly failing lately
+      }),
+      now
+    );
+    const recoveredRecently = computeCapabilityPerformance(
+      provider,
+      "company-research",
+      makeMetrics("p1", "company-research", {
+        tasks_attempted: 100,
+        success_count: 50, // identical lifetime rate to the case above
+        recent_attempts: [...outcomesAgo(5, 10, true, now), ...outcomesAgo(5, 2, false, now)], // mostly succeeding lately
+      }),
+      now
+    );
+
+    expect(recoveredRecently.successRate).toBeGreaterThan(recentlyDeclined.successRate);
+  });
+
+  it("gives an old batch of outcomes much less weight than the same batch happening recently", () => {
+    const provider = makeProvider({ id: "p1" });
+    const now = Date.parse("2026-06-01T00:00:00.000Z");
+    const mixedBatch = (daysAgo: number) => [...outcomesAgo(daysAgo, 15, true, now), ...outcomesAgo(daysAgo, 5, false, now)]; // 75% rate
+
+    const old = computeCapabilityPerformance(
+      provider,
+      "company-research",
+      makeMetrics("p1", "company-research", { tasks_attempted: 100, success_count: 90, recent_attempts: mixedBatch(220) }), // lowest weight tier
+      now
+    );
+    const recent = computeCapabilityPerformance(
+      provider,
+      "company-research",
+      makeMetrics("p1", "company-research", { tasks_attempted: 100, success_count: 90, recent_attempts: mixedBatch(2) }), // full weight
+      now
+    );
+
+    // Same lifetime totals, same recent batch composition - only age differs.
+    // The old batch's tiny effective sample size pulls its Wilson bound
+    // toward the neutral 0.5 prior; the recent one gets to keep more of its
+    // own signal.
+    expect(recent.successRate).toBeGreaterThan(old.successRate);
+  });
+});
+
+describe("computeTrustTier", () => {
+  it("classifies a provider with zero jobs as new", () => {
+    const perf = computeCapabilityPerformance(makeProvider({ id: "p1" }), "company-research", undefined);
+    expect(computeTrustTier(perf, undefined)).toBe("new");
+  });
+
+  it("classifies a provider with a handful of jobs as probation", () => {
+    const perf = computeCapabilityPerformance(
+      makeProvider({ id: "p1" }),
+      "company-research",
+      makeMetrics("p1", "company-research", { tasks_attempted: 3, success_count: 3 })
+    );
+    expect(computeTrustTier(perf, undefined)).toBe("probation");
+  });
+
+  it("classifies a provider with an established job count as trusted", () => {
+    const perf = computeCapabilityPerformance(
+      makeProvider({ id: "p1" }),
+      "company-research",
+      makeMetrics("p1", "company-research", { tasks_attempted: 50, success_count: 45 })
+    );
+    expect(computeTrustTier(perf, undefined)).toBe("trusted");
+  });
+
+  it("reports degraded/suspended straight from the existing kill-switch override, regardless of job count", () => {
+    const perf = computeCapabilityPerformance(
+      makeProvider({ id: "p1" }),
+      "company-research",
+      makeMetrics("p1", "company-research", { tasks_attempted: 500, success_count: 490 })
+    );
+    expect(computeTrustTier(perf, overrideOf({ degraded: true }))).toBe("degraded");
+    expect(computeTrustTier(perf, overrideOf({ enabled: false }))).toBe("suspended");
+  });
+
+  it("suspended takes priority over degraded when both are set", () => {
+    const perf = computeCapabilityPerformance(makeProvider({ id: "p1" }), "company-research", undefined);
+    expect(computeTrustTier(perf, overrideOf({ enabled: false, degraded: true }))).toBe("suspended");
   });
 });
 

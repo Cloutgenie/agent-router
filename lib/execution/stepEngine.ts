@@ -341,6 +341,7 @@ export async function* executeStepGraph(opts: ExecuteStepGraphOptions): AsyncGen
         capability: step.capability,
         constraints,
         performance: perfMap,
+        overrides,
         explorationRate: config.explorationRate,
         budgetRemaining,
       });

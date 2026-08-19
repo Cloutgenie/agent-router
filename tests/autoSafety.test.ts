@@ -15,6 +15,8 @@ function record(overrides: Partial<ProviderPerformanceRecord> = {}): ProviderPer
     verification_total: 0,
     accepted_count: 0,
     rejected_count: 0,
+    recent_attempts: [],
+    recent_verifications: [],
     ...overrides,
   };
 }

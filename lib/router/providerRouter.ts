@@ -3,11 +3,12 @@ import {
   Capability,
   ExecutionOffer,
   ProviderCandidateScore,
+  ProviderOverride,
   ProviderPerformanceMetrics,
   RoutingPreference,
   TaskConstraints,
 } from "@/types";
-import { buildExecutionOffer, computeCapabilityPerformance, computeUtility } from "./marketUtility";
+import { buildExecutionOffer, computeCapabilityPerformance, computeTrustTier, computeUtility } from "./marketUtility";
 
 export const ROUTER_WEIGHTS = {
   capability_fit: 0.3,
@@ -88,6 +89,8 @@ export interface RouteStepInput {
   capability: Capability;
   constraints: TaskConstraints;
   performance: Map<string, ProviderPerformanceMetrics>;
+  /** Kill-switch/auto-safety state, keyed by provider id (V7 #35-36) - feeds trust-tier probation gating. */
+  overrides: Record<string, ProviderOverride>;
   explorationRate: number;
   /** Approximate remaining budget available to this step, if a budget was set. */
   budgetRemaining?: number;
@@ -107,7 +110,7 @@ export interface RouteStepResult {
  * to the UI verbatim under "How this task was routed" - nothing is hidden.
  */
 export function routeStep(input: RouteStepInput): RouteStepResult {
-  const { providers, capability, performance, explorationRate, constraints } = input;
+  const { providers, capability, performance, overrides, explorationRate, constraints } = input;
 
   if (providers.length === 0) {
     return { candidates: [], offers: [], fallbackProviderIds: [] };
@@ -116,6 +119,25 @@ export function routeStep(input: RouteStepInput): RouteStepResult {
   const preference = constraints.routing_preference ?? "balanced";
   const marketOptimal = preference === "market-optimal";
   const weights = preference === "market-optimal" ? null : weightsFor(preference);
+
+  // Computed once per provider up front - reused by both the eligibility
+  // filter below and the scoring pass, rather than recomputed per check.
+  const perfByProvider = new Map(
+    providers.map((provider) => [provider.id, computeCapabilityPerformance(provider, capability, performance.get(provider.id))])
+  );
+  // Trust tier (V7 #35-36) is computed and exposed on every candidate for
+  // transparency (see ProviderCandidateScore.trust_tier below), but is NOT a
+  // hard routing exclusion in this codebase today: without an executor
+  // registration/onboarding flow (V7 #3, not built yet), there is no actual
+  // "unvetted external supply" for probation to protect against - every
+  // provider here is a known, seeded, built-in one. Hard-gating on it would
+  // only ever block a task's own explicitly pre-approved write action the
+  // very first time any provider tries it, with no real safety upside.
+  // Revisit once executor registration exists and "new" can mean something
+  // other than "hasn't happened to run this exact capability yet."
+  const trustTierByProvider = new Map(
+    providers.map((provider) => [provider.id, computeTrustTier(perfByProvider.get(provider.id)!, overrides[provider.id])])
+  );
 
   // Market core (V7 #9): hard floors/ceilings exclude a candidate outright -
   // never just score it down - so a task's constraints can't be out-scored
@@ -130,13 +152,10 @@ export function routeStep(input: RouteStepInput): RouteStepResult {
     ) {
       return false;
     }
+    const perf = perfByProvider.get(provider.id)!;
+    if (constraints.minimum_quality != null && perf.avgQuality < constraints.minimum_quality) return false;
     const metrics = performance.get(provider.id);
-    if (constraints.minimum_quality != null) {
-      const perf = computeCapabilityPerformance(provider, capability, metrics);
-      if (perf.avgQuality < constraints.minimum_quality) return false;
-    }
     if (constraints.minimum_verification != null && metrics && metrics.verification_total > 0) {
-      const perf = computeCapabilityPerformance(provider, capability, metrics);
       if (perf.verificationRate < constraints.minimum_verification) return false;
     }
     return true;
@@ -160,7 +179,7 @@ export function routeStep(input: RouteStepInput): RouteStepResult {
     const withinBudget =
       input.budgetRemaining == null || provider.price_per_task <= input.budgetRemaining;
     const metrics = performance.get(provider.id);
-    const perf = computeCapabilityPerformance(provider, capability, metrics);
+    const perf = perfByProvider.get(provider.id)!;
     const bonus = historicalBonus(provider, metrics);
 
     let total: number;
@@ -194,6 +213,7 @@ export function routeStep(input: RouteStepInput): RouteStepResult {
       configured: provider.configured,
       selected: false,
       explored: false,
+      trust_tier: trustTierByProvider.get(provider.id)!,
     };
 
     return { candidate, offer: buildExecutionOffer(provider, perf), totalScore: total };

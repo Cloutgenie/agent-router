@@ -276,6 +276,18 @@ export interface ExecutionApproval {
 // Router layer - per-step provider scoring and selection.
 // ---------------------------------------------------------------------------
 
+/**
+ * Executor standing for one capability (V7 #35-36) - unifies two things that
+ * already existed under different names rather than duplicating them:
+ * "suspended"/"degraded" read the existing kill-switch/auto-safety override
+ * state (lib/providers/overrideStore.ts, lib/policy/autoSafety.ts) verbatim;
+ * "new"/"probation"/"trusted" are newly derived from job count. A
+ * new/probation executor is restricted to READ_ONLY-risk capabilities - see
+ * lib/router/marketUtility.ts::computeTrustTier and its use in
+ * lib/router/providerRouter.ts.
+ */
+export type TrustTier = "new" | "probation" | "trusted" | "degraded" | "suspended";
+
 export interface ProviderCandidateScore {
   provider_id: string;
   provider_name: string;
@@ -292,6 +304,7 @@ export interface ProviderCandidateScore {
   selected: boolean;
   /** True if this candidate won via exploration rather than top score. */
   explored: boolean;
+  trust_tier: TrustTier;
 }
 
 // ---------------------------------------------------------------------------
@@ -697,6 +710,12 @@ export interface TaskHistoryEntry {
 // Provider performance history (local, feeds back into routing).
 // ---------------------------------------------------------------------------
 
+/** One timestamped pass/fail outcome - the raw material for recency-weighted reputation (V7 #13). */
+export interface TimestampedOutcome {
+  timestamp: string;
+  passed: boolean;
+}
+
 export interface ProviderPerformanceRecord {
   provider_id: string;
   capability: Capability;
@@ -710,6 +729,15 @@ export interface ProviderPerformanceRecord {
   /** Human feedback (V4 #22-23): accept/reject on results this provider contributed to. */
   accepted_count: number;
   rejected_count: number;
+  /**
+   * Bounded recency logs (V7 #13) - capped, oldest-dropped-first, alongside
+   * (not replacing) the lifetime counters above. Reputation decay blends a
+   * recency-weighted read of these with the lifetime rates - see
+   * lib/router/marketUtility.ts. Not decayed themselves: acceptance/rejection
+   * has no recency log yet, deliberately deferred (see README).
+   */
+  recent_attempts: TimestampedOutcome[];
+  recent_verifications: TimestampedOutcome[];
 }
 
 export interface ProviderPerformanceMetrics {
@@ -734,6 +762,9 @@ export interface ProviderPerformanceMetrics {
   verification_total: number;
   accepted_count: number;
   rejected_count: number;
+  /** Reputation decay (V7 #13) - passthrough of the same-named record fields. */
+  recent_attempts: TimestampedOutcome[];
+  recent_verifications: TimestampedOutcome[];
 }
 
 // ---------------------------------------------------------------------------

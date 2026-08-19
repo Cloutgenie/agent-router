@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { actualProviderName } from "@/lib/providerLabel";
-import { ExecutionStep, StepStatus } from "@/types";
+import { ExecutionStep, StepStatus, TrustTier } from "@/types";
+
+/** "trusted" is the normal, unremarkable state - no badge needed for it. */
+const TRUST_TIER_BADGE: Partial<Record<TrustTier, string>> = {
+  new: "border-muted-dim/30 bg-surface-raised text-muted-dim",
+  probation: "border-warn/30 bg-warn-soft text-warn",
+  degraded: "border-bad/30 bg-bad-soft text-bad",
+  suspended: "border-bad/30 bg-bad-soft text-bad",
+};
 
 const STATUS_STYLES: Record<StepStatus, string> = {
   pending: "border-border text-muted-dim",
@@ -57,6 +65,11 @@ function RoutingBreakdown({ step }: { step: ExecutionStep }) {
                 <div className="flex items-center gap-1.5">
                   {c.selected && <span className="h-1.5 w-1.5 rounded-full bg-accent-strong" />}
                   <span className="font-medium text-foreground">{c.provider_name}</span>
+                  {TRUST_TIER_BADGE[c.trust_tier] && (
+                    <span className={`rounded-full border px-1.5 py-0.5 text-[9px] capitalize ${TRUST_TIER_BADGE[c.trust_tier]}`}>
+                      {c.trust_tier}
+                    </span>
+                  )}
                   {c.explored && (
                     <span className="rounded-full bg-warn-soft px-1.5 py-0.5 text-[9px] text-warn">explored</span>
                   )}

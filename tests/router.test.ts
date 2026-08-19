@@ -15,6 +15,7 @@ describe("routeStep", () => {
     const result = routeStep({
       providers: [cheap, premium],
       capability: "company-research",
+      overrides: {},
       constraints: {},
       performance: new Map(),
       explorationRate: 0,
@@ -34,6 +35,7 @@ describe("routeStep", () => {
     const result = routeStep({
       providers: [affordable, expensive],
       capability: "company-research",
+      overrides: {},
       constraints: { budget: 2 },
       performance: new Map(),
       explorationRate: 0,
@@ -56,6 +58,7 @@ describe("routeStep", () => {
     const result = routeStep({
       providers: [best, worst],
       capability: "company-research",
+      overrides: {},
       constraints: {},
       performance: new Map(),
       explorationRate: 0.1,
@@ -73,6 +76,7 @@ describe("routeStep", () => {
     const result = routeStep({
       providers: [best, runnerUp],
       capability: "company-research",
+      overrides: {},
       constraints: {},
       performance: new Map(),
       explorationRate: 0.1,
@@ -90,6 +94,7 @@ describe("routeStep", () => {
     const balanced = routeStep({
       providers: [cheapButWeak, pricyButStrong],
       capability: "company-research",
+      overrides: {},
       constraints: { routing_preference: "balanced" },
       performance: new Map(),
       explorationRate: 0,
@@ -97,6 +102,7 @@ describe("routeStep", () => {
     const lowestCost = routeStep({
       providers: [cheapButWeak, pricyButStrong],
       capability: "company-research",
+      overrides: {},
       constraints: { routing_preference: "lowest-cost" },
       performance: new Map(),
       explorationRate: 0,
@@ -117,6 +123,7 @@ describe("routeStep", () => {
     const result = routeStep({
       providers: [],
       capability: "company-research",
+      overrides: {},
       constraints: {},
       performance: new Map(),
       explorationRate: 0,
@@ -133,6 +140,7 @@ describe("routeStep", () => {
     const result = routeStep({
       providers: [a, b],
       capability: "company-research",
+      overrides: {},
       constraints: {},
       performance: new Map(),
       explorationRate: 0,
@@ -140,6 +148,23 @@ describe("routeStep", () => {
 
     expect(result.offers).toHaveLength(2);
     expect(result.offers.map((o) => o.executorId)).toEqual(result.candidates.map((c) => c.provider_id));
+  });
+
+  it("surfaces trust_tier on every candidate but never uses it to exclude a candidate from a non-read-only step", () => {
+    const brandNew = makeProvider({ id: "brand-new", capabilities: ["email-send"] });
+
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+    const result = routeStep({
+      providers: [brandNew],
+      capability: "email-send", // EXTERNAL_COMMUNICATION risk class, not READ_ONLY
+      overrides: {},
+      constraints: {},
+      performance: new Map(),
+      explorationRate: 0,
+    });
+
+    expect(result.candidates).toHaveLength(1); // not excluded, even though it's a zero-history "new" provider
+    expect(result.candidates[0].trust_tier).toBe("new");
   });
 
   it("market-optimal mode picks the executor with real verified-outcome history over one with only a good raw quality score", () => {
@@ -163,6 +188,7 @@ describe("routeStep", () => {
     const result = routeStep({
       providers: [flashyButUnverified, provenTrackRecord],
       capability: "company-research",
+      overrides: {},
       constraints: { routing_preference: "market-optimal" },
       performance,
       explorationRate: 0,
@@ -179,6 +205,7 @@ describe("routeStep", () => {
     const result = routeStep({
       providers: [reliable, cheap],
       capability: "company-research",
+      overrides: {},
       constraints: { routing_preference: "highest-reliability" },
       performance: new Map(),
       explorationRate: 0,
@@ -195,6 +222,7 @@ describe("routeStep", () => {
     const result = routeStep({
       providers: [affordable, pricy],
       capability: "company-research",
+      overrides: {},
       constraints: { maximum_cost: 5 },
       performance: new Map(),
       explorationRate: 0,
@@ -211,6 +239,7 @@ describe("routeStep", () => {
     const result = routeStep({
       providers: [provider],
       capability: "company-research",
+      overrides: {},
       constraints: { minimum_verification: 0.9 },
       performance: new Map(),
       explorationRate: 0,
@@ -229,6 +258,7 @@ describe("routeStep", () => {
     const result = routeStep({
       providers: [weak],
       capability: "company-research",
+      overrides: {},
       constraints: { minimum_verification: 0.5 },
       performance,
       explorationRate: 0,

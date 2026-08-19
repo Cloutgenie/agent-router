@@ -180,6 +180,36 @@ locked out by a floor nothing has had the chance to earn. These four constraints
 today (`POST /api/tasks`) - no TaskForm UI field yet, unlike the two new routing-preference
 options, which are.
 
+#### Reputation decay and trust tiers (`lib/router/marketUtility.ts`)
+
+`CapabilityPerformance.successRate`/`verificationRate` are **recency-weighted**, not a flat
+lifetime average: `lib/history/performanceStore.ts` now keeps a bounded, timestamped log of the
+last 200 attempts and 200 verification outcomes per provider/capability (alongside, not instead
+of, the original lifetime counters - "don't erase long-term history"). Each logged outcome is
+weighted by age using the same buckets as the spec's own example (≤30 days: full weight, 31-90:
+0.6, 91-180: 0.3, 180+: 0.1), then run through the same Wilson lower bound as everything else -
+a sparse, old tail of events produces a small effective sample size, pulling the recency-weighted
+read toward neutral exactly like too few observations would. The final rate blends this
+recency-weighted read (65%) with the plain lifetime Wilson bound (35%), so a long, quiet track
+record still counts for something and a handful of recent events can't singlehandedly override
+it. A provider with no recency log yet (e.g. history recorded before this field existed) falls
+back cleanly to the pure lifetime rate rather than being dragged toward "unknown."
+
+Every candidate also gets a **`trust_tier`** (`new` / `probation` / `trusted` / `degraded` /
+`suspended`, `ProviderCandidateScore.trust_tier`, visible in "How this task was routed"):
+`degraded`/`suspended` are read straight from the existing kill-switch/auto-safety override
+state (`lib/providers/overrideStore.ts`, `lib/policy/autoSafety.ts` - unchanged, not
+re-implemented), while `new` (0 jobs) / `probation` (fewer than 5, mirroring
+`autoSafety.ts`'s own `MIN_SAMPLE_SIZE`) / `trusted` are newly derived from job count. This is
+**transparency, not a hard routing exclusion**: without an executor-registration/onboarding flow
+(a separate future batch), there's no real "unvetted external supply" for probation to protect
+against yet - every provider here is a known, seeded, built-in one, and hard-gating on trust tier
+would only ever block a task's own explicitly pre-approved write action the first time any
+provider tried it, with no real safety benefit. (An earlier version of this batch did add that
+hard exclusion and it broke exactly that case in testing - removed once the underlying reasoning
+didn't hold up.) Revisit once there's an actual onboarding flow and "new" can mean something
+other than "hasn't happened to run this exact capability yet."
+
 ### 3. Providers (`lib/providers/`)
 
 Every provider - mock or real - implements the same `AgentProvider` interface
@@ -547,8 +577,14 @@ makes it traceable back to a mock source.
   `GET /api/tasks/:id/quotes` endpoint or dashboard UI. `getQuotesForTask()` exists and is
   tested; wiring it up is future work.
 - Market Optimal, reputation, and the utility function have no dashboards, executor
-  registration, trust tiers, or shadow routing yet - this batch is the scoring/data-model
-  layer those would sit on top of, not the dashboards themselves.
+  registration, or shadow routing yet - these batches are the scoring/data-model layer those
+  would sit on top of, not the dashboards themselves.
+- `trust_tier` is transparency only, not a routing exclusion (see "Reputation decay and trust
+  tiers" above) - no per-tier task-volume cap or budget ceiling is enforced either, since the
+  spec's stated reasons for both (protecting against unvetted external supply) don't apply
+  without executor registration existing yet.
+- Human acceptance/rejection feedback has no recency log - only success and verification
+  outcomes decay; `humanAcceptanceRate` stays a plain lifetime Wilson bound.
 - `verify-emails` currently runs the same enrichment step as `enrich-contacts` rather than a
   distinct email-verification-only pass.
 - Budget enforcement narrows provider choice at routing time and reports estimated vs. actual

@@ -41,41 +41,59 @@
   "signal-hunter::hiring-signals": {
     "provider_id": "signal-hunter",
     "capability": "hiring-signals",
-    "tasks_attempted": 26,
-    "success_count": 26,
-    "confidence_sum": 22.59999999999999,
-    "latency_sum": 105.33999999999997,
-    "cost_sum": 29.899999999999984,
+    "tasks_attempted": 27,
+    "success_count": 27,
+    "confidence_sum": 23.50999999999999,
+    "latency_sum": 108.97999999999998,
+    "cost_sum": 31.049999999999983,
     "verification_pass_count": 272,
     "verification_total": 290,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T19:37:44.252Z",
+        "passed": true
+      }
+    ]
   },
   "funding-intelligence::funding-research": {
     "provider_id": "funding-intelligence",
     "capability": "funding-research",
-    "tasks_attempted": 24,
-    "success_count": 24,
-    "confidence_sum": 22.010000000000005,
-    "latency_sum": 107.19000000000003,
-    "cost_sum": 36,
+    "tasks_attempted": 25,
+    "success_count": 25,
+    "confidence_sum": 22.940000000000005,
+    "latency_sum": 112.68000000000002,
+    "cost_sum": 37.5,
     "verification_pass_count": 119,
     "verification_total": 138,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T19:37:44.801Z",
+        "passed": true
+      }
+    ]
   },
   "verification-agent::data-validation": {
     "provider_id": "verification-agent",
     "capability": "data-validation",
-    "tasks_attempted": 29,
-    "success_count": 28,
-    "confidence_sum": 25.919999999999998,
-    "latency_sum": 73.54,
-    "cost_sum": 19.87999999999999,
+    "tasks_attempted": 30,
+    "success_count": 29,
+    "confidence_sum": 26.88,
+    "latency_sum": 75.82000000000001,
+    "cost_sum": 20.579999999999988,
     "verification_pass_count": 0,
     "verification_total": 0,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T19:38:09.132Z",
+        "passed": true
+      }
+    ]
   },
   "research-agent::cybersecurity-research": {
     "provider_id": "research-agent",
@@ -171,15 +189,51 @@
   "tavily::company-research": {
     "provider_id": "tavily",
     "capability": "company-research",
-    "tasks_attempted": 10,
-    "success_count": 10,
-    "confidence_sum": 7.120861111111112,
-    "latency_sum": 18.9,
-    "cost_sum": 3.5000000000000004,
+    "tasks_attempted": 11,
+    "success_count": 11,
+    "confidence_sum": 7.903718253968255,
+    "latency_sum": 21.299999999999997,
+    "cost_sum": 3.8500000000000005,
     "verification_pass_count": 0,
-    "verification_total": 41,
+    "verification_total": 48,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T19:37:43.140Z",
+        "passed": true
+      }
+    ],
+    "recent_verifications": [
+      {
+        "timestamp": "2026-08-19T19:38:09.139Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.142Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.147Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.152Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.155Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.162Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.164Z",
+        "passed": false
+      }
+    ]
   },
   "tavily::funding-research": {
     "provider_id": "tavily",
@@ -223,15 +277,51 @@
   "openai-analysis-provider::ai-adoption-signal": {
     "provider_id": "openai-analysis-provider",
     "capability": "ai-adoption-signal",
-    "tasks_attempted": 5,
-    "success_count": 5,
-    "confidence_sum": 4.25,
-    "latency_sum": 52,
-    "cost_sum": 3.25,
+    "tasks_attempted": 6,
+    "success_count": 6,
+    "confidence_sum": 5.1,
+    "latency_sum": 58.2,
+    "cost_sum": 3.9,
     "verification_pass_count": 0,
-    "verification_total": 39,
+    "verification_total": 46,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T19:37:49.325Z",
+        "passed": true
+      }
+    ],
+    "recent_verifications": [
+      {
+        "timestamp": "2026-08-19T19:38:09.141Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.143Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.150Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.154Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.161Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.163Z",
+        "passed": false
+      },
+      {
+        "timestamp": "2026-08-19T19:38:09.164Z",
+        "passed": false
+      }
+    ]
   },
   "openai-analysis-provider::data-validation": {
     "provider_id": "openai-analysis-provider",
@@ -249,27 +339,39 @@
   "apollo-provider::contact-enrichment": {
     "provider_id": "apollo-provider",
     "capability": "contact-enrichment",
-    "tasks_attempted": 5,
-    "success_count": 5,
-    "confidence_sum": 3,
-    "latency_sum": 11.3,
-    "cost_sum": 6,
+    "tasks_attempted": 6,
+    "success_count": 6,
+    "confidence_sum": 3.3,
+    "latency_sum": 13.100000000000001,
+    "cost_sum": 7.2,
     "verification_pass_count": 0,
     "verification_total": 7,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T19:37:44.918Z",
+        "passed": true
+      }
+    ]
   },
   "browser-executor::official-source-verification": {
     "provider_id": "browser-executor",
     "capability": "official-source-verification",
-    "tasks_attempted": 6,
-    "success_count": 5,
-    "confidence_sum": 3.4000000000000004,
-    "latency_sum": 40.4,
-    "cost_sum": 7.800000000000001,
+    "tasks_attempted": 7,
+    "success_count": 6,
+    "confidence_sum": 4.2,
+    "latency_sum": 59.5,
+    "cost_sum": 9.9,
     "verification_pass_count": 0,
     "verification_total": 0,
     "accepted_count": 0,
-    "rejected_count": 0
+    "rejected_count": 0,
+    "recent_attempts": [
+      {
+        "timestamp": "2026-08-19T19:38:08.442Z",
+        "passed": true
+      }
+    ]
   }
 }

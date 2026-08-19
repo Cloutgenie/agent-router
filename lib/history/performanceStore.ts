@@ -1,9 +1,16 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { maybeAutoManage } from "@/lib/policy/autoSafety";
-import { Capability, ProviderPerformanceMetrics, ProviderPerformanceRecord } from "@/types";
+import { Capability, ProviderPerformanceMetrics, ProviderPerformanceRecord, TimestampedOutcome } from "@/types";
 
 const PERFORMANCE_PATH = path.join(process.cwd(), "data", "provider-performance.json");
+/** Bounded recency log (V7 #13) - old entries drop first; the lifetime counters above are untouched by this cap. */
+const MAX_RECENT_OUTCOMES = 200;
+
+function pushRecent(log: TimestampedOutcome[] | undefined, passed: boolean): TimestampedOutcome[] {
+  const next = [...(log ?? []), { timestamp: new Date().toISOString(), passed }];
+  return next.length > MAX_RECENT_OUTCOMES ? next.slice(next.length - MAX_RECENT_OUTCOMES) : next;
+}
 
 function key(providerId: string, capability: Capability): string {
   return `${providerId}::${capability}`;
@@ -70,6 +77,7 @@ export async function recordProviderAttempt(input: RecordAttemptInput): Promise<
       existing.confidence_sum += input.confidence;
       existing.latency_sum += input.latency_seconds;
       existing.cost_sum += input.cost;
+      existing.recent_attempts = pushRecent(existing.recent_attempts, input.succeeded);
       all[k] = existing;
       return existing;
     });
@@ -97,6 +105,7 @@ export async function recordVerificationOutcome(
       const existing = all[k] ?? emptyRecord(providerId, capability);
       existing.verification_total += 1;
       if (passed) existing.verification_pass_count += 1;
+      existing.recent_verifications = pushRecent(existing.recent_verifications, passed);
       all[k] = existing;
       return existing;
     });
@@ -142,6 +151,8 @@ function emptyRecord(providerId: string, capability: Capability): ProviderPerfor
     verification_total: 0,
     accepted_count: 0,
     rejected_count: 0,
+    recent_attempts: [],
+    recent_verifications: [],
   };
 }
 
@@ -186,6 +197,10 @@ function toMetrics(record: ProviderPerformanceRecord): ProviderPerformanceMetric
     verification_total: record.verification_total,
     accepted_count: record.accepted_count,
     rejected_count: record.rejected_count,
+    // Defensive fallback: records persisted before V7's reputation-decay
+    // batch won't have these fields on disk yet.
+    recent_attempts: record.recent_attempts ?? [],
+    recent_verifications: record.recent_verifications ?? [],
   };
 }
 
