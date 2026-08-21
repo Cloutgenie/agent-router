@@ -35,6 +35,8 @@ export interface RuntimeConfig {
   maxBrowserPagesPerTask: number;
   /** No concrete vendor is wired yet - see lib/providers/adapters/persistentAgentExecutor.ts. Always false until one is. */
   persistentAgentConfigured: boolean;
+  /** Real Cursor Cloud Agent - can open a genuine PR against a real GitHub repo, so it needs its own explicit opt-in beyond just having a key set. */
+  cursorConfigured: boolean;
 }
 
 function parseGrantedScopes(raw: string | undefined): MCPPermissionScope[] {
@@ -69,5 +71,7 @@ export function getRuntimeConfig(): RuntimeConfig {
       liveEnabled &&
       process.env.ENABLE_PERSISTENT_AGENTS === "true" &&
       Boolean(process.env.PERSISTENT_AGENT_API_URL),
+    cursorConfigured:
+      liveEnabled && process.env.ENABLE_CURSOR_AGENT === "true" && Boolean(process.env.CURSOR_API_KEY),
   };
 }

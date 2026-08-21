@@ -6,6 +6,7 @@ import { createA2AProvider } from "./adapters/a2aProvider";
 import { createApolloProvider } from "./adapters/apolloProvider";
 import { createBrowserExecutor } from "./adapters/browserExecutor";
 import { createClayProvider } from "./adapters/clayProvider";
+import { createCursorProvider } from "./adapters/cursorProvider";
 import { createGeminiAnalysisProvider } from "./adapters/geminiProvider";
 import { createLLMAnalysisProvider } from "./adapters/llmAnalysisProvider";
 import { createMCPProvider } from "./adapters/mcpProvider";
@@ -50,6 +51,7 @@ export function getAllProviders(config: RuntimeConfig = getRuntimeConfig()): Age
     createXAIProvider(config),
     createBrowserExecutor(config),
     createPersistentAgentExecutor(config),
+    createCursorProvider(config),
   ];
 }
 

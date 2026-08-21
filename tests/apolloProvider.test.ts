@@ -20,6 +20,7 @@ function makeConfig(overrides: Partial<RuntimeConfig> = {}): RuntimeConfig {
     browserbaseConfigured: false,
     maxBrowserPagesPerTask: 10,
     persistentAgentConfigured: false,
+    cursorConfigured: false,
     ...overrides,
   };
 }
