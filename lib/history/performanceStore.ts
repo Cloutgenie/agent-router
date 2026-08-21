@@ -1,9 +1,7 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { maybeAutoManage } from "@/lib/policy/autoSafety";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { Capability, ProviderPerformanceMetrics, ProviderPerformanceRecord, TimestampedOutcome } from "@/types";
 
-const PERFORMANCE_PATH = path.join(process.cwd(), "data", "provider-performance.json");
 /** Bounded recency log (V7 #13) - old entries drop first; the lifetime counters above are untouched by this cap. */
 const MAX_RECENT_OUTCOMES = 200;
 
@@ -16,39 +14,48 @@ function key(providerId: string, capability: Capability): string {
   return `${providerId}::${capability}`;
 }
 
-async function readAll(): Promise<Record<string, ProviderPerformanceRecord>> {
-  try {
-    const raw = await fs.readFile(PERFORMANCE_PATH, "utf-8");
-    return JSON.parse(raw) as Record<string, ProviderPerformanceRecord>;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return {};
-    throw err;
-  }
+/**
+ * Every one of these reads runs during routing (the router scores every
+ * candidate against its historical performance) - unconfigured persistence
+ * must degrade to "no history yet" (cold start, same as a brand-new
+ * provider), never throw and block routing entirely.
+ */
+async function readOne(k: string): Promise<ProviderPerformanceRecord | undefined> {
+  if (!isSupabaseConfigured()) return undefined;
+  const { data, error } = await getSupabaseClient().from("provider_performance").select("data").eq("key", k).maybeSingle();
+  if (error) throw error;
+  return data?.data as ProviderPerformanceRecord | undefined;
 }
 
-async function writeAll(records: Record<string, ProviderPerformanceRecord>): Promise<void> {
-  await fs.writeFile(PERFORMANCE_PATH, JSON.stringify(records, null, 2), "utf-8");
+async function readAll(): Promise<Record<string, ProviderPerformanceRecord>> {
+  if (!isSupabaseConfigured()) return {};
+  const { data, error } = await getSupabaseClient().from("provider_performance").select("key, data");
+  if (error) throw error;
+  const all: Record<string, ProviderPerformanceRecord> = {};
+  for (const row of data ?? []) all[row.key] = row.data as ProviderPerformanceRecord;
+  return all;
+}
+
+async function writeOne(k: string, record: ProviderPerformanceRecord): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from("provider_performance")
+    .upsert({ key: k, provider_id: record.provider_id, capability: record.capability, data: record });
+  if (error) throw error;
 }
 
 /**
- * Every mutation here is a read-modify-write against one shared JSON file.
- * A single task fans out dozens of concurrent updates (one per claim per
- * step), so without serialization most of them silently clobber each
- * other. This queue chains every mutation onto the previous one so they
- * execute one at a time - still async, just never interleaved.
+ * Reads then writes the one row for `providerId::capability` - Postgres
+ * upsert is atomic per-row, so (unlike the local-JSON-file version this
+ * replaced) this is durable and survives a serverless restart. Replaces
+ * `data/provider-performance.json`, which never actually persisted on
+ * Vercel (EROFS: read-only filesystem).
  */
-let writeQueue: Promise<unknown> = Promise.resolve();
-
-function enqueue<T>(mutation: (all: Record<string, ProviderPerformanceRecord>) => T): Promise<T> {
-  const result = writeQueue.then(async () => {
-    const all = await readAll();
-    const value = mutation(all);
-    await writeAll(all);
-    return value;
-  });
-  // Swallow so one failed mutation doesn't poison the rest of the queue.
-  writeQueue = result.catch(() => undefined);
-  return result;
+async function mutate<T>(providerId: string, capability: Capability, fn: (record: ProviderPerformanceRecord) => T): Promise<T> {
+  const k = key(providerId, capability);
+  const existing = (await readOne(k)) ?? emptyRecord(providerId, capability);
+  const value = fn(existing);
+  await writeOne(k, existing);
+  return value;
 }
 
 interface RecordAttemptInput {
@@ -64,21 +71,18 @@ interface RecordAttemptInput {
  * Local performance history: every provider attempt updates this store, and
  * the router blends it back into future scoring (routing item 14) - the
  * system gradually becomes data-driven rather than relying solely on seeded
- * scores. Write failures are swallowed for the same read-only-filesystem
- * reason as task history: this is a feedback signal, not a dependency.
+ * scores. Write failures are swallowed for the same "never break the
+ * pipeline over a feedback signal" reason as every other store here.
  */
 export async function recordProviderAttempt(input: RecordAttemptInput): Promise<void> {
   try {
-    const updated = await enqueue((all) => {
-      const k = key(input.provider_id, input.capability);
-      const existing = all[k] ?? emptyRecord(input.provider_id, input.capability);
+    const updated = await mutate(input.provider_id, input.capability, (existing) => {
       existing.tasks_attempted += 1;
       if (input.succeeded) existing.success_count += 1;
       existing.confidence_sum += input.confidence;
       existing.latency_sum += input.latency_seconds;
       existing.cost_sum += input.cost;
       existing.recent_attempts = pushRecent(existing.recent_attempts, input.succeeded);
-      all[k] = existing;
       return existing;
     });
     await maybeAutoManage(input.provider_id, updated);
@@ -100,13 +104,10 @@ export async function recordVerificationOutcome(
   passed: boolean
 ): Promise<void> {
   try {
-    const updated = await enqueue((all) => {
-      const k = key(providerId, capability);
-      const existing = all[k] ?? emptyRecord(providerId, capability);
+    const updated = await mutate(providerId, capability, (existing) => {
       existing.verification_total += 1;
       if (passed) existing.verification_pass_count += 1;
       existing.recent_verifications = pushRecent(existing.recent_verifications, passed);
-      all[k] = existing;
       return existing;
     });
     await maybeAutoManage(providerId, updated);
@@ -126,12 +127,9 @@ export async function recordProviderFeedback(
   outcome: "accepted" | "rejected"
 ): Promise<void> {
   try {
-    await enqueue((all) => {
-      const k = key(providerId, capability);
-      const existing = all[k] ?? emptyRecord(providerId, capability);
+    await mutate(providerId, capability, (existing) => {
       if (outcome === "accepted") existing.accepted_count += 1;
       else existing.rejected_count += 1;
-      all[k] = existing;
     });
   } catch (err) {
     console.warn("Could not persist provider feedback:", err);
@@ -160,8 +158,7 @@ export async function getPerformanceMetrics(
   providerId: string,
   capability: Capability
 ): Promise<ProviderPerformanceMetrics | undefined> {
-  const all = await readAll();
-  const record = all[key(providerId, capability)];
+  const record = await readOne(key(providerId, capability));
   if (!record) return undefined;
   return toMetrics(record);
 }
@@ -198,7 +195,7 @@ function toMetrics(record: ProviderPerformanceRecord): ProviderPerformanceMetric
     accepted_count: record.accepted_count,
     rejected_count: record.rejected_count,
     // Defensive fallback: records persisted before V7's reputation-decay
-    // batch won't have these fields on disk yet.
+    // batch won't have these fields yet.
     recent_attempts: record.recent_attempts ?? [],
     recent_verifications: record.recent_verifications ?? [],
   };

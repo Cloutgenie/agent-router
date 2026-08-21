@@ -1,27 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createFakeSupabase } from "./helpers/fakeSupabase";
 
-const files = new Map<string, string>();
+const fakeSupabase = createFakeSupabase();
 
-vi.mock("node:fs/promises", () => ({
-  default: {
-    readFile: vi.fn(async (path: string) => {
-      const content = files.get(path);
-      if (content === undefined) {
-        const err = new Error("not found") as NodeJS.ErrnoException;
-        err.code = "ENOENT";
-        throw err;
-      }
-      return content;
-    }),
-    writeFile: vi.fn(async (path: string, content: string) => {
-      files.set(path, content);
-    }),
-  },
+vi.mock("@/lib/supabase/client", () => ({
+  getSupabaseClient: () => fakeSupabase,
+  isSupabaseConfigured: () => true,
 }));
 
 describe("executor payout accounts", () => {
   beforeEach(() => {
-    files.clear();
+    fakeSupabase.tables.clear();
     vi.resetModules();
   });
 
@@ -34,7 +23,7 @@ describe("executor payout accounts", () => {
     const account = await getPayoutAccount("tavily-provider");
     expect(account.payoutStatus).toBe("not_configured");
     expect(account.stripeConnectedAccountId).toBeUndefined();
-    expect(files.size).toBe(0);
+    expect(fakeSupabase.tables.get("payout_accounts") ?? []).toHaveLength(0);
   });
 
   it("persists a status change and returns it on the next read", async () => {

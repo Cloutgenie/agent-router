@@ -1,27 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createFakeSupabase } from "./helpers/fakeSupabase";
 
-const files = new Map<string, string>();
+const fakeSupabase = createFakeSupabase();
 
-vi.mock("node:fs/promises", () => ({
-  default: {
-    readFile: vi.fn(async (path: string) => {
-      const content = files.get(path);
-      if (content === undefined) {
-        const err = new Error("not found") as NodeJS.ErrnoException;
-        err.code = "ENOENT";
-        throw err;
-      }
-      return content;
-    }),
-    writeFile: vi.fn(async (path: string, content: string) => {
-      files.set(path, content);
-    }),
-  },
+vi.mock("@/lib/supabase/client", () => ({
+  getSupabaseClient: () => fakeSupabase,
+  isSupabaseConfigured: () => true,
 }));
 
 describe("stripe event log", () => {
   beforeEach(() => {
-    files.clear();
+    fakeSupabase.tables.clear();
     vi.resetModules();
   });
 
@@ -44,8 +33,7 @@ describe("stripe event log", () => {
     const { markEventProcessed } = await import("@/lib/billing/stripe/eventLog");
     await markEventProcessed("evt_1");
     await markEventProcessed("evt_1");
-    const fs = (await import("node:fs/promises")).default;
-    const written = JSON.parse(vi.mocked(fs.writeFile).mock.calls.at(-1)![1] as string);
-    expect(written.filter((id: string) => id === "evt_1")).toHaveLength(1);
+    const rows = fakeSupabase.tables.get("stripe_events") ?? [];
+    expect(rows.filter((r) => r.event_id === "evt_1")).toHaveLength(1);
   });
 });

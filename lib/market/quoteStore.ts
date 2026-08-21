@@ -1,77 +1,68 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { ExecutionOffer, ExecutionQuote } from "@/types";
 
-const QUOTES_PATH = path.join(process.cwd(), "data", "execution-quotes.json");
-/** Simple retention cap - this is a local JSON file, not a database. Oldest quotes drop first. */
-const MAX_STORED_QUOTES = 5000;
-
-async function readAll(): Promise<ExecutionQuote[]> {
-  try {
-    const raw = await fs.readFile(QUOTES_PATH, "utf-8");
-    return JSON.parse(raw) as ExecutionQuote[];
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw err;
-  }
-}
-
-async function writeAll(quotes: ExecutionQuote[]): Promise<void> {
-  await fs.writeFile(QUOTES_PATH, JSON.stringify(quotes, null, 2), "utf-8");
-}
-
-/**
- * Same serialized read-modify-write queue as performanceStore.ts, for the
- * same reason: many steps fan out concurrent writes to one shared JSON file.
- */
-let writeQueue: Promise<unknown> = Promise.resolve();
 let idCounter = 0;
 
 /**
  * Persists one ExecutionQuote per eligible executor for a step (V7 #6) - the
  * full quote list, not just the winner - so a future market dashboard can
  * show real competition ("3 quoted, 1 selected") instead of only the
- * outcome. Write failures are swallowed for the same reason as every other
- * store in this app: this is a feedback/transparency signal, not a
- * dependency the pipeline should ever fail because of.
+ * outcome. Backed by Postgres (`execution_quotes`) rather than a local JSON
+ * file, which never actually persisted on Vercel (EROFS: read-only
+ * filesystem). Write failures are still swallowed for the same reason as
+ * every other store in this app: this is a feedback/transparency signal,
+ * not a dependency the pipeline should ever fail because of.
  */
 export async function recordQuotes(taskId: string, stepId: string, offers: ExecutionOffer[]): Promise<void> {
   if (offers.length === 0) return;
   const createdAt = new Date().toISOString();
-  const quotes: ExecutionQuote[] = offers.map((offer) => ({
+  const rows = offers.map((offer) => ({
     id: `quote-${Date.now()}-${idCounter++}`,
-    taskId,
-    stepId,
-    executorId: offer.executorId,
+    task_id: taskId,
+    step_id: stepId,
+    executor_id: offer.executorId,
     capability: offer.capability,
-    priceEstimate: offer.estimatedCost,
-    latencyEstimateMs: offer.estimatedLatencyMs,
-    qualityEstimate: offer.estimatedQuality,
-    reliabilityEstimate: offer.reliability,
-    createdAt,
+    price_estimate: offer.estimatedCost,
+    latency_estimate_ms: offer.estimatedLatencyMs,
+    quality_estimate: offer.estimatedQuality,
+    reliability_estimate: offer.reliability,
+    created_at: createdAt,
   }));
 
-  const result = writeQueue.then(async () => {
-    const all = await readAll();
-    all.push(...quotes);
-    const trimmed = all.length > MAX_STORED_QUOTES ? all.slice(all.length - MAX_STORED_QUOTES) : all;
-    await writeAll(trimmed);
-  });
-  writeQueue = result.catch(() => undefined);
-
   try {
-    await result;
+    const { error } = await getSupabaseClient().from("execution_quotes").insert(rows);
+    if (error) throw error;
   } catch (err) {
     console.warn("Could not persist execution quotes:", err);
   }
 }
 
+function toQuote(row: Record<string, unknown>): ExecutionQuote {
+  return {
+    id: row.id as string,
+    taskId: row.task_id as string,
+    stepId: row.step_id as string,
+    executorId: row.executor_id as string,
+    capability: row.capability as ExecutionQuote["capability"],
+    priceEstimate: row.price_estimate as number,
+    latencyEstimateMs: row.latency_estimate_ms as number,
+    qualityEstimate: row.quality_estimate as number,
+    reliabilityEstimate: row.reliability_estimate as number,
+    createdAt: row.created_at as string,
+  };
+}
+
 export async function getQuotesForTask(taskId: string): Promise<ExecutionQuote[]> {
-  const all = await readAll();
-  return all.filter((q) => q.taskId === taskId);
+  if (!isSupabaseConfigured()) return [];
+  const { data, error } = await getSupabaseClient().from("execution_quotes").select("*").eq("task_id", taskId);
+  if (error) throw error;
+  return (data ?? []).map(toQuote);
 }
 
 /** Every persisted quote - for market-wide analytics (Execution Alpha, capability liquidity) that need the full set, not one task's. */
 export async function getAllQuotes(): Promise<ExecutionQuote[]> {
-  return readAll();
+  if (!isSupabaseConfigured()) return [];
+  const { data, error } = await getSupabaseClient().from("execution_quotes").select("*");
+  if (error) throw error;
+  return (data ?? []).map(toQuote);
 }

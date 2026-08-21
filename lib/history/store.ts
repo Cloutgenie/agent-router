@@ -1,43 +1,48 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { actualProviderName } from "@/lib/providerLabel";
 import { RoutingExperiment, Task, TaskHistoryEntry } from "@/types";
 
-const HISTORY_PATH = path.join(process.cwd(), "data", "history.json");
 const MAX_HISTORY = 200;
 
-async function readAll(): Promise<Task[]> {
-  try {
-    const raw = await fs.readFile(HISTORY_PATH, "utf-8");
-    return JSON.parse(raw) as Task[];
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw err;
-  }
-}
-
-async function writeAll(tasks: Task[]): Promise<void> {
-  await fs.writeFile(HISTORY_PATH, JSON.stringify(tasks, null, 2), "utf-8");
+function toTask(row: Record<string, unknown>): Task {
+  return row.data as Task;
 }
 
 /**
- * Simple local JSON-file persistence - no external database needed for V0.
- * Swallows write failures (e.g. a read-only filesystem on serverless
- * deployments like Vercel) so a persistence hiccup never breaks the task
- * pipeline itself - history is a nice-to-have, not a dependency of routing.
- * Upserts by id, so re-saving a task (e.g. to attach a new followUpTaskId)
- * updates it in place instead of duplicating the entry.
+ * Postgres-backed task history (`tasks` table) - replaces the local
+ * data/history.json file, which never actually persisted on Vercel (every
+ * write there threw EROFS: read-only filesystem). Swallows write failures
+ * regardless, same as before: history is a nice-to-have, not a dependency
+ * of routing. Upserts by id, so re-saving a task (e.g. to attach a new
+ * followUpTaskId) updates it in place instead of duplicating the entry.
  */
 export async function saveTaskToHistory(task: Task): Promise<void> {
+  if (!isSupabaseConfigured()) return;
   try {
-    const tasks = await readAll();
-    const existingIndex = tasks.findIndex((t) => t.id === task.id);
-    if (existingIndex >= 0) {
-      tasks[existingIndex] = task;
-    } else {
-      tasks.unshift(task);
+    const { error } = await getSupabaseClient().from("tasks").upsert({
+      id: task.id,
+      trace_id: task.traceId,
+      root_task_id: task.rootTaskId,
+      mode: task.mode,
+      status: task.status,
+      created_at: task.created_at,
+      data: task,
+    });
+    if (error) throw error;
+
+    // Trim to the most recent MAX_HISTORY tasks, same retention cap as the file version.
+    const { data: excess, error: listErr } = await getSupabaseClient()
+      .from("tasks")
+      .select("id")
+      .order("created_at", { ascending: false })
+      .range(MAX_HISTORY, MAX_HISTORY + 100);
+    if (listErr) throw listErr;
+    if (excess && excess.length > 0) {
+      await getSupabaseClient()
+        .from("tasks")
+        .delete()
+        .in("id", excess.map((r) => r.id));
     }
-    await writeAll(tasks.slice(0, MAX_HISTORY));
   } catch (err) {
     console.warn("Could not persist task history:", err);
   }
@@ -45,28 +50,35 @@ export async function saveTaskToHistory(task: Task): Promise<void> {
 
 /** Full `Task[]` for every persisted task - for analytics that need `plan.steps`/`candidates`, not just the summarized `TaskHistoryEntry` shape `listHistory()` returns. */
 export async function getAllHistoryTasks(): Promise<Task[]> {
-  return readAll();
+  if (!isSupabaseConfigured()) return [];
+  const { data, error } = await getSupabaseClient().from("tasks").select("data").order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toTask);
 }
 
 export async function listHistory(): Promise<TaskHistoryEntry[]> {
-  const tasks = await readAll();
+  const tasks = await getAllHistoryTasks();
   return tasks.map(toHistoryEntry).sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 export async function getHistoryTask(id: string): Promise<Task | undefined> {
-  const tasks = await readAll();
-  return tasks.find((t) => t.id === id);
+  if (!isSupabaseConfigured()) return undefined;
+  const { data, error } = await getSupabaseClient().from("tasks").select("data").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? toTask(data) : undefined;
 }
 
 /** Every task gets exactly one trace ID (spec #57) - this is the lookup the `/traces/:traceId` page uses. */
 export async function getHistoryTaskByTraceId(traceId: string): Promise<Task | undefined> {
-  const tasks = await readAll();
-  return tasks.find((t) => t.traceId === traceId);
+  if (!isSupabaseConfigured()) return undefined;
+  const { data, error } = await getSupabaseClient().from("tasks").select("data").eq("trace_id", traceId).maybeSingle();
+  if (error) throw error;
+  return data ? toTask(data) : undefined;
 }
 
 /** Routing experiments (V4 #13) are derived from tasks run with comparison mode on - no separate store needed. */
 export async function listExperiments(): Promise<RoutingExperiment[]> {
-  const tasks = await readAll();
+  const tasks = await getAllHistoryTasks();
   return tasks
     .filter((t) => t.comparison)
     .map((t) => ({
@@ -80,10 +92,14 @@ export async function listExperiments(): Promise<RoutingExperiment[]> {
 }
 
 export async function getTaskLineage(rootTaskId: string): Promise<Task[]> {
-  const tasks = await readAll();
-  return tasks
-    .filter((t) => t.rootTaskId === rootTaskId)
-    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  if (!isSupabaseConfigured()) return [];
+  const { data, error } = await getSupabaseClient()
+    .from("tasks")
+    .select("data")
+    .eq("root_task_id", rootTaskId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toTask);
 }
 
 function toHistoryEntry(task: Task): TaskHistoryEntry {

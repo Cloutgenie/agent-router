@@ -1,30 +1,6 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { ExecutionLedgerEntry, LedgerEntryType } from "@/types";
 
-const LEDGER_PATH = path.join(process.cwd(), "data", "execution-ledger.json");
-
-async function readAll(): Promise<ExecutionLedgerEntry[]> {
-  try {
-    const raw = await fs.readFile(LEDGER_PATH, "utf-8");
-    return JSON.parse(raw) as ExecutionLedgerEntry[];
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw err;
-  }
-}
-
-async function writeAll(entries: ExecutionLedgerEntry[]): Promise<void> {
-  await fs.writeFile(LEDGER_PATH, JSON.stringify(entries, null, 2), "utf-8");
-}
-
-/**
- * Same serialized read-modify-write queue as performanceStore.ts/
- * quoteStore.ts - ledger writes must never interleave and clobber each
- * other, and this is the one store where that would mean losing a real
- * financial record, not just a stale metric.
- */
-let writeQueue: Promise<unknown> = Promise.resolve();
 let idCounter = 0;
 
 interface AppendInput {
@@ -33,6 +9,18 @@ interface AppendInput {
   type: LedgerEntryType;
   amountCents: number;
   metadata?: Record<string, unknown>;
+}
+
+function toEntry(row: Record<string, unknown>): ExecutionLedgerEntry {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    taskId: (row.task_id as string | undefined) ?? undefined,
+    type: row.type as LedgerEntryType,
+    amountCents: row.amount_cents as number,
+    createdAt: row.created_at as string,
+    metadata: (row.metadata as Record<string, unknown> | undefined) ?? undefined,
+  };
 }
 
 async function append(input: AppendInput): Promise<ExecutionLedgerEntry> {
@@ -46,14 +34,24 @@ async function append(input: AppendInput): Promise<ExecutionLedgerEntry> {
     metadata: input.metadata,
   };
 
-  const result = writeQueue.then(async () => {
-    const all = await readAll();
-    all.push(entry);
-    await writeAll(all);
-    return entry;
+  // Without persistence configured, a live-mode task still gets a coherent
+  // in-memory receipt for this one request rather than a hard crash - it
+  // just won't be there on the next request (billing genuinely needs real
+  // persistence to mean anything; this is a graceful demo fallback, not a
+  // substitute for configuring Supabase before actually relying on billing).
+  if (!isSupabaseConfigured()) return entry;
+
+  const { error } = await getSupabaseClient().from("execution_ledger").insert({
+    id: entry.id,
+    user_id: entry.userId,
+    task_id: entry.taskId ?? null,
+    type: entry.type,
+    amount_cents: entry.amountCents,
+    metadata: entry.metadata ?? null,
+    created_at: entry.createdAt,
   });
-  writeQueue = result.catch(() => undefined);
-  return result;
+  if (error) throw error;
+  return entry;
 }
 
 /**
@@ -63,10 +61,15 @@ async function append(input: AppendInput): Promise<ExecutionLedgerEntry> {
  * task finalization must never double-charge or double-credit.
  */
 export async function appendLedgerEntry(input: AppendInput & { idempotencyKey?: string }): Promise<ExecutionLedgerEntry> {
-  if (input.taskId) {
-    const all = await readAll();
-    const existing = all.find((e) => e.taskId === input.taskId && e.type === input.type);
-    if (existing) return existing;
+  if (input.taskId && isSupabaseConfigured()) {
+    const { data, error } = await getSupabaseClient()
+      .from("execution_ledger")
+      .select("*")
+      .eq("task_id", input.taskId)
+      .eq("type", input.type)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) return toEntry(data);
   }
   return append(input);
 }
@@ -83,8 +86,14 @@ export async function appendManualLedgerEntry(input: AppendInput): Promise<Execu
 }
 
 export async function getLedgerForUser(userId: string): Promise<ExecutionLedgerEntry[]> {
-  const all = await readAll();
-  return all.filter((e) => e.userId === userId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  if (!isSupabaseConfigured()) return [];
+  const { data, error } = await getSupabaseClient()
+    .from("execution_ledger")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toEntry);
 }
 
 /** Sum of every entry's `amountCents` for a user - the balance, computed from the ledger itself, never a cached counter that can drift. */

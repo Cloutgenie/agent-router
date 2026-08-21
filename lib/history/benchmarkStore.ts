@@ -1,28 +1,40 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { BenchmarkResult, BenchmarkRun } from "@/lib/benchmarks/runBenchmark";
 
-const BENCHMARKS_PATH = path.join(process.cwd(), "data", "benchmark-runs.json");
 const MAX_RUNS = 20;
 
-async function readAll(): Promise<BenchmarkRun[]> {
-  try {
-    const raw = await fs.readFile(BENCHMARKS_PATH, "utf-8");
-    return JSON.parse(raw) as BenchmarkRun[];
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw err;
-  }
+function toRun(row: Record<string, unknown>): BenchmarkRun {
+  return {
+    id: row.id as string,
+    ranAt: row.ran_at as string,
+    results: row.results as BenchmarkResult[],
+  };
 }
 
-/** Same read-only-filesystem tolerance as lib/history/store.ts - a persistence hiccup never breaks a benchmark run. */
+/** Same read-only-filesystem tolerance as lib/history/store.ts - a persistence hiccup never breaks a benchmark run. Backed by Postgres (`benchmark_runs`). */
 export async function saveBenchmarkRun(results: BenchmarkResult[]): Promise<BenchmarkRun> {
   const run: BenchmarkRun = { id: `bench-${randomUUID()}`, ranAt: new Date().toISOString(), results };
+  if (!isSupabaseConfigured()) return run;
   try {
-    const runs = await readAll();
-    runs.unshift(run);
-    await fs.writeFile(BENCHMARKS_PATH, JSON.stringify(runs.slice(0, MAX_RUNS), null, 2), "utf-8");
+    const { error } = await getSupabaseClient()
+      .from("benchmark_runs")
+      .insert({ id: run.id, ran_at: run.ranAt, results: run.results });
+    if (error) throw error;
+
+    // Trim to the most recent MAX_RUNS, same retention cap as the file version.
+    const { data: excess, error: listErr } = await getSupabaseClient()
+      .from("benchmark_runs")
+      .select("id")
+      .order("ran_at", { ascending: false })
+      .range(MAX_RUNS, MAX_RUNS + 100);
+    if (listErr) throw listErr;
+    if (excess && excess.length > 0) {
+      await getSupabaseClient()
+        .from("benchmark_runs")
+        .delete()
+        .in("id", excess.map((r) => r.id));
+    }
   } catch (err) {
     console.warn("Could not persist benchmark run:", err);
   }
@@ -30,10 +42,20 @@ export async function saveBenchmarkRun(results: BenchmarkResult[]): Promise<Benc
 }
 
 export async function listBenchmarkRuns(): Promise<BenchmarkRun[]> {
-  return readAll();
+  if (!isSupabaseConfigured()) return [];
+  const { data, error } = await getSupabaseClient().from("benchmark_runs").select("*").order("ran_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(toRun);
 }
 
 export async function getLatestBenchmarkRun(): Promise<BenchmarkRun | undefined> {
-  const runs = await readAll();
-  return runs[0];
+  if (!isSupabaseConfigured()) return undefined;
+  const { data, error } = await getSupabaseClient()
+    .from("benchmark_runs")
+    .select("*")
+    .order("ran_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toRun(data) : undefined;
 }

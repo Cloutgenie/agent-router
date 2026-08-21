@@ -1,8 +1,5 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { BillingAccount, BillingPlan, BillingStatus, SpendingLimits } from "@/types";
-
-const ACCOUNT_PATH = path.join(process.cwd(), "data", "billing-account.json");
 
 /**
  * Single-tenant scaffold: this app has no user/auth system yet, so there is
@@ -52,33 +49,73 @@ function newAccount(): BillingAccount {
   };
 }
 
-async function readFromDisk(): Promise<BillingAccount | null> {
-  try {
-    const raw = await fs.readFile(ACCOUNT_PATH, "utf-8");
-    return JSON.parse(raw) as BillingAccount;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw err;
-  }
+function toAccount(row: Record<string, unknown>): BillingAccount {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    stripeCustomerId: (row.stripe_customer_id as string | null) ?? null,
+    subscriptionId: (row.subscription_id as string | null) ?? null,
+    plan: row.plan as BillingPlan,
+    status: row.status as BillingStatus,
+    currentPeriodStart: row.current_period_start as string,
+    currentPeriodEnd: row.current_period_end as string,
+    spendingLimits: (row.spending_limits as SpendingLimits) ?? {},
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
 }
 
-async function writeToDisk(account: BillingAccount): Promise<void> {
-  await fs.writeFile(ACCOUNT_PATH, JSON.stringify(account, null, 2), "utf-8");
+function toRow(account: BillingAccount): Record<string, unknown> {
+  return {
+    id: account.id,
+    user_id: account.userId,
+    stripe_customer_id: account.stripeCustomerId,
+    subscription_id: account.subscriptionId,
+    plan: account.plan,
+    status: account.status,
+    current_period_start: account.currentPeriodStart,
+    current_period_end: account.currentPeriodEnd,
+    spending_limits: account.spendingLimits,
+    created_at: account.createdAt,
+    updated_at: account.updatedAt,
+  };
+}
+
+async function readFromDb(): Promise<BillingAccount | null> {
+  if (!isSupabaseConfigured()) return null;
+  const { data, error } = await getSupabaseClient()
+    .from("billing_accounts")
+    .select("*")
+    .eq("user_id", DEFAULT_USER_ID)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toAccount(data) : null;
+}
+
+/**
+ * Without persistence configured, there's nothing to write to - the account
+ * getBillingAccount() returns is honestly in-memory-only (a fresh default
+ * every call) rather than throwing and blocking every billing page.
+ */
+async function writeToDb(account: BillingAccount): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const { error } = await getSupabaseClient().from("billing_accounts").upsert(toRow(account));
+  if (error) throw error;
 }
 
 /** Creates the default account on first call - the single-tenant equivalent of a signup. */
 export async function getBillingAccount(): Promise<BillingAccount> {
-  const existing = await readFromDisk();
+  const existing = await readFromDb();
   if (existing) return existing;
   const account = newAccount();
-  await writeToDisk(account);
+  await writeToDb(account);
   return account;
 }
 
 export async function updateBillingAccount(patch: Partial<Omit<BillingAccount, "id" | "userId" | "createdAt">>): Promise<BillingAccount> {
   const existing = await getBillingAccount();
   const updated: BillingAccount = { ...existing, ...patch, updatedAt: new Date().toISOString() };
-  await writeToDisk(updated);
+  await writeToDb(updated);
   return updated;
 }
 

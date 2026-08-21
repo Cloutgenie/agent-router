@@ -1,44 +1,58 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { ProviderOverride } from "@/types";
-
-const OVERRIDES_PATH = path.join(process.cwd(), "data", "provider-overrides.json");
 
 /**
  * Kill switches (spec #33) need to take effect immediately, with no
  * redeploy, for every request currently in flight - not just the next one.
  * That rules out a purely file-backed store (too slow to read on every
  * routing decision) and a purely in-memory one (lost on restart, and
- * useless across the two processes `next dev` sometimes runs). This does
- * both: an in-memory cache that every write updates synchronously (so it's
- * visible to the very next eligibility check in this process), backed by
- * the same JSON-file persistence pattern as history.json /
- * provider-performance.json (best-effort - a read-only filesystem never
- * breaks routing, it just means overrides don't survive a restart there).
+ * useless across the two processes `next dev` sometimes runs, or across
+ * separate serverless invocations). This does both: an in-memory cache that
+ * every write updates synchronously (so it's visible to the very next
+ * eligibility check in this process), backed by Postgres (`provider_overrides`)
+ * so it survives restarts and is shared across every serverless instance -
+ * unlike the local-JSON-file version this replaced, which never actually
+ * persisted on Vercel (EROFS: read-only filesystem).
  */
 let cache: Record<string, ProviderOverride> | null = null;
 
-async function loadFromDisk(): Promise<Record<string, ProviderOverride>> {
+async function loadFromDb(): Promise<Record<string, ProviderOverride>> {
+  // No persistence configured yet (e.g. local dev before Supabase credentials are set) means
+  // no overrides exist - {} is the correct answer, not a crash. Every task run calls this
+  // unconditionally (it's the kill-switch check), so this must never throw over missing config.
+  if (!isSupabaseConfigured()) return {};
+  const { data, error } = await getSupabaseClient().from("provider_overrides").select("provider_id, data");
+  if (error) throw error;
+  const all: Record<string, ProviderOverride> = {};
+  for (const row of data ?? []) {
+    all[row.provider_id] = row.data as ProviderOverride;
+  }
+  return all;
+}
+
+async function persist(providerId: string, override: ProviderOverride): Promise<void> {
   try {
-    const raw = await fs.readFile(OVERRIDES_PATH, "utf-8");
-    return JSON.parse(raw) as Record<string, ProviderOverride>;
+    const { error } = await getSupabaseClient()
+      .from("provider_overrides")
+      .upsert({ provider_id: providerId, data: override, updated_at: new Date().toISOString() });
+    if (error) throw error;
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return {};
-    throw err;
+    console.warn("Could not persist provider override:", err);
   }
 }
 
-async function persist(all: Record<string, ProviderOverride>): Promise<void> {
+async function removeFromDb(providerId: string): Promise<void> {
   try {
-    await fs.writeFile(OVERRIDES_PATH, JSON.stringify(all, null, 2), "utf-8");
+    const { error } = await getSupabaseClient().from("provider_overrides").delete().eq("provider_id", providerId);
+    if (error) throw error;
   } catch (err) {
-    console.warn("Could not persist provider overrides:", err);
+    console.warn("Could not persist provider override removal:", err);
   }
 }
 
 /** Warms the in-memory cache. Call this once at the top of any request path that will make a synchronous eligibility decision - see lib/pipeline.ts. */
 export async function ensureOverridesLoaded(): Promise<Record<string, ProviderOverride>> {
-  if (cache === null) cache = await loadFromDisk();
+  if (cache === null) cache = await loadFromDb();
   return cache;
 }
 
@@ -75,8 +89,8 @@ export async function setProviderOverride(
     updatedBy,
   };
   all[providerId] = updated;
-  cache = all; // update the in-memory copy before the disk write even resolves
-  await persist(all);
+  cache = all; // update the in-memory copy before the DB write even resolves
+  await persist(providerId, updated);
   return updated;
 }
 
@@ -85,5 +99,5 @@ export async function resetProviderOverride(providerId: string): Promise<void> {
   const all = await ensureOverridesLoaded();
   delete all[providerId];
   cache = all;
-  await persist(all);
+  await removeFromDb(providerId);
 }

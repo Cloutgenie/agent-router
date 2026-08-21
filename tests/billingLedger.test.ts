@@ -1,27 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createFakeSupabase } from "./helpers/fakeSupabase";
 
-const files = new Map<string, string>();
+const fakeSupabase = createFakeSupabase();
 
-vi.mock("node:fs/promises", () => ({
-  default: {
-    readFile: vi.fn(async (path: string) => {
-      const content = files.get(path);
-      if (content === undefined) {
-        const err = new Error("not found") as NodeJS.ErrnoException;
-        err.code = "ENOENT";
-        throw err;
-      }
-      return content;
-    }),
-    writeFile: vi.fn(async (path: string, content: string) => {
-      files.set(path, content);
-    }),
-  },
+vi.mock("@/lib/supabase/client", () => ({
+  getSupabaseClient: () => fakeSupabase,
+  isSupabaseConfigured: () => true,
 }));
 
 describe("billing ledger", () => {
   beforeEach(() => {
-    files.clear();
+    fakeSupabase.tables.clear();
     vi.resetModules();
   });
 

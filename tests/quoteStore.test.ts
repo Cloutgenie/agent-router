@@ -1,23 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExecutionOffer, ExecutionQuote } from "@/types";
+import { createFakeSupabase } from "./helpers/fakeSupabase";
 
-const files = new Map<string, string>();
+const fakeSupabase = createFakeSupabase();
 
-vi.mock("node:fs/promises", () => ({
-  default: {
-    readFile: vi.fn(async (path: string) => {
-      const content = files.get(path);
-      if (content === undefined) {
-        const err = new Error("not found") as NodeJS.ErrnoException;
-        err.code = "ENOENT";
-        throw err;
-      }
-      return content;
-    }),
-    writeFile: vi.fn(async (path: string, content: string) => {
-      files.set(path, content);
-    }),
-  },
+vi.mock("@/lib/supabase/client", () => ({
+  getSupabaseClient: () => fakeSupabase,
+  isSupabaseConfigured: () => true,
 }));
 
 function makeOffer(overrides: Partial<ExecutionOffer> = {}): ExecutionOffer {
@@ -37,7 +26,7 @@ function makeOffer(overrides: Partial<ExecutionOffer> = {}): ExecutionOffer {
 
 describe("quoteStore", () => {
   beforeEach(() => {
-    files.clear();
+    fakeSupabase.tables.clear();
     vi.resetModules();
     vi.clearAllMocks();
   });
@@ -58,12 +47,11 @@ describe("quoteStore", () => {
   });
 
   it("does not write anything when there are no offers", async () => {
-    const fs = (await import("node:fs/promises")).default;
     const { recordQuotes } = await import("@/lib/market/quoteStore");
 
     await recordQuotes("task-1", "step-1", []);
 
-    expect(fs.writeFile).not.toHaveBeenCalled();
+    expect(fakeSupabase.tables.get("execution_quotes") ?? []).toHaveLength(0);
   });
 
   it("only returns quotes for the requested task", async () => {
